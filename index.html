@@ -1,0 +1,1123 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TaxOpt — 다주택자 양도 의사결정 최적화</title>
+  <style>
+    /* ───────────────────────────── 기본 리셋 & 변수 ───────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --blue:    #2563eb;
+      --blue-lt: #eff6ff;
+      --blue-dk: #1d4ed8;
+      --gray-50: #f9fafb;
+      --gray-100:#f3f4f6;
+      --gray-200:#e5e7eb;
+      --gray-400:#9ca3af;
+      --gray-600:#4b5563;
+      --gray-800:#1f2937;
+      --red:     #dc2626;
+      --green:   #16a34a;
+      --radius:  8px;
+      --shadow:  0 1px 3px rgba(0,0,0,.1), 0 1px 2px rgba(0,0,0,.06);
+    }
+
+    body {
+      font-family: 'Apple SD Gothic Neo', 'Malgun Gothic', -apple-system, sans-serif;
+      background: var(--gray-50);
+      color: var(--gray-800);
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    /* ───────────────────────────── 헤더 ───────────────────────────── */
+    header {
+      background: var(--blue);
+      color: #fff;
+      padding: 16px 24px;
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+    }
+    header h1 { font-size: 18px; font-weight: 700; letter-spacing: -.3px; }
+    header p  { font-size: 12px; opacity: .8; }
+
+    /* ───────────────────────────── 메인 레이아웃 ───────────────────────────── */
+    main {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 24px 16px 48px;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    /* ───────────────────────────── 섹션 카드 공통 ───────────────────────────── */
+    .card {
+      background: #fff;
+      border: 1px solid var(--gray-200);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
+    .card-header {
+      padding: 14px 20px;
+      border-bottom: 1px solid var(--gray-200);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .card-header .icon {
+      width: 22px; height: 22px;
+      background: var(--blue-lt);
+      color: var(--blue);
+      border-radius: 4px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 13px; font-weight: 700;
+    }
+    .card-header h2 { font-size: 14px; font-weight: 600; }
+    .card-header .badge {
+      margin-left: auto;
+      font-size: 11px;
+      background: var(--blue-lt);
+      color: var(--blue);
+      padding: 2px 8px;
+      border-radius: 99px;
+      font-weight: 600;
+    }
+    .card-body { padding: 16px 20px; }
+
+    /* ───────────────────────────── 자연어 입력창 ───────────────────────────── */
+    #nlp-area {
+      width: 100%;
+      min-height: 80px;
+      resize: vertical;
+      border: 1px solid var(--gray-200);
+      border-radius: var(--radius);
+      padding: 10px 12px;
+      font-size: 14px;
+      font-family: inherit;
+      color: var(--gray-800);
+      outline: none;
+      transition: border-color .15s;
+    }
+    #nlp-area:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(37,99,235,.1); }
+    #nlp-area::placeholder { color: var(--gray-400); }
+
+    .nlp-hint {
+      margin-top: 6px;
+      font-size: 12px;
+      color: var(--gray-400);
+    }
+
+    /* ───────────────────────────── 공통 정보 ───────────────────────────── */
+    .house-count-toggle {
+      display: flex;
+      gap: 8px;
+    }
+    .toggle-btn {
+      flex: 1;
+      padding: 10px 0;
+      border: 2px solid var(--gray-200);
+      border-radius: var(--radius);
+      background: #fff;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--gray-600);
+      cursor: pointer;
+      transition: all .15s;
+    }
+    .toggle-btn.active {
+      border-color: var(--blue);
+      background: var(--blue-lt);
+      color: var(--blue);
+    }
+    .toggle-btn:hover:not(.active) { border-color: var(--blue); color: var(--blue); }
+
+    /* ───────────────────────────── 폼 그리드 ───────────────────────────── */
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 14px 16px;
+    }
+    .form-group { display: flex; flex-direction: column; gap: 4px; }
+    .form-group label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--gray-600);
+    }
+    .form-group label .required {
+      color: var(--red);
+      margin-left: 2px;
+    }
+    .form-group label .hint {
+      font-weight: 400;
+      color: var(--gray-400);
+      margin-left: 4px;
+    }
+    .form-group input[type="text"],
+    .form-group input[type="date"],
+    .form-group input[type="number"],
+    .form-group select {
+      padding: 8px 10px;
+      border: 1px solid var(--gray-200);
+      border-radius: 6px;
+      font-size: 13px;
+      font-family: inherit;
+      color: var(--gray-800);
+      background: #fff;
+      outline: none;
+      transition: border-color .15s;
+      width: 100%;
+    }
+    .form-group input:focus,
+    .form-group select:focus {
+      border-color: var(--blue);
+      box-shadow: 0 0 0 3px rgba(37,99,235,.1);
+    }
+
+    /* 체크박스 그룹 */
+    .checkbox-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 10px;
+      border: 1px solid var(--gray-200);
+      border-radius: 6px;
+      background: #fff;
+      cursor: pointer;
+      user-select: none;
+    }
+    .checkbox-group input[type="checkbox"] { accent-color: var(--blue); width: 15px; height: 15px; }
+    .checkbox-group span { font-size: 13px; color: var(--gray-800); }
+
+    /* ───────────────────────────── 주택 카드 ───────────────────────────── */
+    .house-cards {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .house-card {
+      background: #fff;
+      border: 1px solid var(--gray-200);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+    .house-card-header {
+      padding: 12px 20px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: var(--gray-50);
+      border-bottom: 1px solid var(--gray-200);
+    }
+    .house-label {
+      width: 28px; height: 28px;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 13px; font-weight: 700;
+      color: #fff;
+      flex-shrink: 0;
+    }
+    .house-label.a { background: #2563eb; }
+    .house-label.b { background: #7c3aed; }
+    .house-label.c { background: #0891b2; }
+
+    .house-card-header .house-name {
+      font-size: 14px;
+      font-weight: 600;
+    }
+    .house-card-header .house-sub {
+      font-size: 12px;
+      color: var(--gray-400);
+      margin-left: 2px;
+    }
+
+    /* 3번 주택 — 기본 숨김 */
+    #house-c { display: none; }
+
+    .house-card-body { padding: 16px 20px; }
+
+    /* 섹션 구분선 */
+    .form-section-title {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--gray-400);
+      text-transform: uppercase;
+      letter-spacing: .6px;
+      margin-bottom: 10px;
+      margin-top: 6px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid var(--gray-100);
+    }
+    .form-section-title:first-child { margin-top: 0; }
+
+    .form-divider { height: 16px; }
+
+    /* ───────────────────────────── 경고 배너 ───────────────────────────── */
+    .warn-banner {
+      background: #fffbeb;
+      border: 1px solid #fcd34d;
+      border-radius: var(--radius);
+      padding: 10px 14px;
+      font-size: 12px;
+      color: #92400e;
+      display: flex;
+      gap: 8px;
+      align-items: flex-start;
+    }
+    .warn-banner .warn-icon { flex-shrink: 0; font-style: normal; }
+
+    /* ───────────────────────────── 버튼 ───────────────────────────── */
+    .btn-row {
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+      margin-top: 4px;
+    }
+    .btn {
+      padding: 10px 22px;
+      border-radius: var(--radius);
+      font-size: 14px;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+      border: none;
+      transition: all .15s;
+    }
+    .btn-primary {
+      background: var(--blue);
+      color: #fff;
+    }
+    .btn-primary:hover { background: var(--blue-dk); }
+    .btn-secondary {
+      background: #fff;
+      color: var(--gray-600);
+      border: 1px solid var(--gray-200);
+    }
+    .btn-secondary:hover { background: var(--gray-100); }
+
+    /* ───────────────────────────── 결과 플레이스홀더 ───────────────────────────── */
+    .result-placeholder {
+      border: 2px dashed var(--gray-200);
+      border-radius: var(--radius);
+      padding: 40px 24px;
+      text-align: center;
+      color: var(--gray-400);
+    }
+    .result-placeholder .result-icon { font-size: 32px; margin-bottom: 10px; }
+    .result-placeholder p { font-size: 13px; }
+    .result-placeholder .result-sub { font-size: 12px; margin-top: 4px; color: var(--gray-400); }
+
+    /* ───────────────────────────── 면책 문구 ───────────────────────────── */
+    footer {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 0 16px 32px;
+      font-size: 11px;
+      color: var(--gray-400);
+      line-height: 1.7;
+    }
+
+    /* ───────────────────────────── AI 자동 입력 버튼 ───────────────────────────── */
+    .nlp-btn-row {
+      display: flex;
+      justify-content: flex-end;
+      margin-top: 8px;
+    }
+    .btn-ai {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 16px;
+      background: var(--blue);
+      color: #fff;
+      border: none;
+      border-radius: var(--radius);
+      font-size: 13px;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+      transition: background .15s;
+    }
+    .btn-ai:hover { background: var(--blue-dk); }
+    .btn-ai:disabled {
+      background: var(--gray-400);
+      cursor: not-allowed;
+    }
+    .btn-ai .spinner {
+      width: 13px; height: 13px;
+      border: 2px solid rgba(255,255,255,.4);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin .6s linear infinite;
+      display: none;
+    }
+    .btn-ai.loading .spinner { display: block; }
+    .btn-ai.loading .btn-ai-text { display: none; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ───────────────────────────── 미입력 안내 배너 ───────────────────────────── */
+    #missing-banner {
+      display: none;
+      background: #eff6ff;
+      border: 1px solid #93c5fd;
+      border-radius: var(--radius);
+      padding: 12px 16px;
+      font-size: 13px;
+      color: #1e40af;
+      align-items: flex-start;
+      gap: 10px;
+    }
+    #missing-banner.visible { display: flex; }
+    #missing-banner .banner-icon { font-style: normal; font-size: 16px; flex-shrink: 0; }
+    #missing-banner ul {
+      margin: 4px 0 0 4px;
+      padding-left: 16px;
+      font-size: 12px;
+    }
+    #missing-banner ul li { margin-top: 2px; }
+
+    /* ───────────────────────────── 필드 에러 테두리 ───────────────────────────── */
+    .field-error {
+      border-color: var(--red) !important;
+      box-shadow: 0 0 0 3px rgba(220,38,38,.1) !important;
+    }
+
+    /* ───────────────────────────── AI 추출 완료 배지 ───────────────────────────── */
+    .filled-badge {
+      display: inline-block;
+      font-size: 10px;
+      background: #dcfce7;
+      color: #15803d;
+      border: 1px solid #86efac;
+      border-radius: 99px;
+      padding: 1px 7px;
+      font-weight: 600;
+      margin-left: 6px;
+      vertical-align: middle;
+    }
+  </style>
+</head>
+<body>
+
+<!-- ═══════════════════ 헤더 ═══════════════════ -->
+<header>
+  <h1>TaxOpt</h1>
+  <p>다주택자 양도 의사결정 최적화 시뮬레이터</p>
+</header>
+
+<main>
+
+  <!-- ═══════════════════ 1. 자연어 입력 ═══════════════════ -->
+  <section class="card">
+    <div class="card-header">
+      <div class="icon">①</div>
+      <h2>상황 설명 <span style="font-weight:400;color:var(--gray-400)">(선택)</span></h2>
+    </div>
+    <div class="card-body">
+      <textarea
+        id="nlp-area"
+        placeholder="예) 서울 아파트 2채를 보유 중입니다. 올해 안에 1채를 팔고 싶은데, 어떤 순서로 파는 게 세금이 가장 적게 나올까요?"
+      ></textarea>
+      <p class="nlp-hint">
+        자연어로 상황을 설명하면 AI가 맥락을 파악해 폼을 자동으로 채워줍니다. 아래 폼 입력만으로도 시뮬레이션은 동작합니다.
+      </p>
+      <!-- AI 자동 입력 버튼 -->
+      <div class="nlp-btn-row">
+        <button class="btn-ai" id="btn-ai-extract" onclick="runAiExtract()">
+          <span class="spinner"></span>
+          <span class="btn-ai-text">✦ AI로 자동 입력</span>
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- 미입력 필수 항목 안내 배너 (AI 추출 후 표시) -->
+  <div id="missing-banner">
+    <em class="banner-icon">ℹ️</em>
+    <div>
+      <strong>아래 항목을 추가로 입력해 주세요</strong>
+      <ul id="missing-list"></ul>
+    </div>
+  </div>
+
+  <!-- ═══════════════════ 2. 공통 정보 ═══════════════════ -->
+  <section class="card">
+    <div class="card-header">
+      <div class="icon">②</div>
+      <h2>세대 기본 정보</h2>
+      <span class="badge">공통</span>
+    </div>
+    <div class="card-body">
+
+      <!-- 주택 수 토글 -->
+      <div class="form-group" style="margin-bottom:16px;">
+        <label>보유 주택 수<span class="required">*</span></label>
+        <div class="house-count-toggle">
+          <button class="toggle-btn active" id="btn-2" onclick="setHouseCount(2)">2채</button>
+          <button class="toggle-btn"        id="btn-3" onclick="setHouseCount(3)">3채</button>
+        </div>
+      </div>
+
+      <div class="form-grid">
+
+        <!-- 기준 연도 -->
+        <div class="form-group">
+          <label>
+            시뮬레이션 기준 연도<span class="required">*</span>
+            <span class="hint">양도 예정 연도</span>
+          </label>
+          <select id="base-year">
+            <option value="2025">2025년</option>
+            <option value="2026" selected>2026년</option>
+            <option value="2027">2027년</option>
+            <option value="2028">2028년</option>
+          </select>
+        </div>
+
+        <!-- 세대원 수 -->
+        <div class="form-group">
+          <label>
+            세대원 수<span class="required">*</span>
+            <span class="hint">주민등록 기준</span>
+          </label>
+          <select id="household-members">
+            <option value="1">1명 (단독)</option>
+            <option value="2" selected>2명</option>
+            <option value="3">3명</option>
+            <option value="4">4명 이상</option>
+          </select>
+        </div>
+
+        <!-- 연간 기본공제 사용 여부 -->
+        <div class="form-group">
+          <label>
+            당해연도 기본공제 (250만 원)
+            <span class="hint">타 양도자산 사용 여부</span>
+          </label>
+          <select id="basic-deduction-used">
+            <option value="no" selected>사용 안 함 (잔여 250만 원)</option>
+            <option value="yes">이미 사용함 (잔여 0원)</option>
+          </select>
+        </div>
+
+      </div><!-- /form-grid -->
+    </div><!-- /card-body -->
+  </section>
+
+  <!-- ═══════════════════ 3. 주택별 입력 폼 ═══════════════════ -->
+  <section>
+    <div class="card-header" style="background:#fff;border:1px solid var(--gray-200);border-radius:var(--radius) var(--radius) 0 0;border-bottom:none;">
+      <div class="icon">③</div>
+      <h2>주택별 정보 입력</h2>
+    </div>
+
+    <div class="house-cards">
+
+      <!-- ───── 주택 A ───── -->
+      <div class="house-card" id="house-a">
+        <div class="house-card-header">
+          <span class="house-label a">A</span>
+          <span class="house-name">주택 A</span>
+          <span class="house-sub">— 먼저 취득한 주택</span>
+        </div>
+        <div class="house-card-body">
+
+          <p class="form-section-title">기본 정보</p>
+          <div class="form-grid">
+
+            <div class="form-group">
+              <label>주택 별칭 <span class="hint">예: 강남 아파트</span></label>
+              <input type="text" id="a-nickname" placeholder="예) 강남 아파트" />
+            </div>
+
+            <div class="form-group">
+              <label>소재지 (시·군·구)<span class="required">*</span></label>
+              <input type="text" id="a-location" placeholder="예) 서울 강남구" />
+            </div>
+
+          </div>
+
+          <div class="form-divider"></div>
+          <p class="form-section-title">취득 정보</p>
+          <div class="form-grid">
+
+            <div class="form-group">
+              <label>취득일<span class="required">*</span></label>
+              <input type="date" id="a-acq-date" />
+            </div>
+
+            <div class="form-group">
+              <label>취득가액 (원)<span class="required">*</span></label>
+              <input type="number" id="a-acq-price" placeholder="예) 500000000" min="0" />
+            </div>
+
+            <div class="form-group">
+              <label>
+                필요경비 (원)
+                <span class="hint">취득세·중개료 등</span>
+              </label>
+              <input type="number" id="a-acq-cost" placeholder="예) 10000000" min="0" />
+            </div>
+
+            <div class="form-group">
+              <label>취득 당시 조정대상지역 여부<span class="required">*</span>
+                <span class="hint">소득세법 §104의3</span>
+              </label>
+              <select id="a-acq-regulated">
+                <option value="yes">조정대상지역 (해당)</option>
+                <option value="no" selected>비조정대상지역</option>
+              </select>
+            </div>
+
+          </div>
+
+          <div class="form-divider"></div>
+          <p class="form-section-title">거주·보유 현황</p>
+          <div class="form-grid">
+
+            <div class="form-group">
+              <label>실거주 기간 (개월)<span class="required">*</span></label>
+              <input type="number" id="a-reside-months" placeholder="예) 24" min="0" />
+            </div>
+
+            <div class="form-group" style="grid-column: span 2;">
+              <label style="margin-bottom:6px;">현재 이 주택에 거주 중?</label>
+              <label class="checkbox-group">
+                <input type="checkbox" id="a-living-now" />
+                <span>예, 현재 거주 중입니다</span>
+              </label>
+            </div>
+
+          </div>
+
+          <div class="form-divider"></div>
+          <p class="form-section-title">양도 예정 정보</p>
+          <div class="form-grid">
+
+            <div class="form-group">
+              <label>양도 예정일<span class="required">*</span></label>
+              <input type="date" id="a-sale-date" />
+            </div>
+
+            <div class="form-group">
+              <label>양도 예정가액 (원)<span class="required">*</span></label>
+              <input type="number" id="a-sale-price" placeholder="예) 900000000" min="0" />
+            </div>
+
+            <div class="form-group">
+              <label>
+                양도 시 조정대상지역 여부<span class="required">*</span>
+              </label>
+              <select id="a-sale-regulated">
+                <option value="yes">조정대상지역 (해당)</option>
+                <option value="no" selected>비조정대상지역</option>
+              </select>
+            </div>
+
+          </div>
+        </div><!-- /card-body -->
+      </div><!-- /house-a -->
+
+      <!-- ───── 주택 B ───── -->
+      <div class="house-card" id="house-b">
+        <div class="house-card-header">
+          <span class="house-label b">B</span>
+          <span class="house-name">주택 B</span>
+          <span class="house-sub">— 두 번째 취득한 주택</span>
+        </div>
+        <div class="house-card-body">
+
+          <p class="form-section-title">기본 정보</p>
+          <div class="form-grid">
+
+            <div class="form-group">
+              <label>주택 별칭 <span class="hint">예: 분당 빌라</span></label>
+              <input type="text" id="b-nickname" placeholder="예) 분당 빌라" />
+            </div>
+
+            <div class="form-group">
+              <label>소재지 (시·군·구)<span class="required">*</span></label>
+              <input type="text" id="b-location" placeholder="예) 경기 성남시 분당구" />
+            </div>
+
+          </div>
+
+          <div class="form-divider"></div>
+          <p class="form-section-title">취득 정보</p>
+          <div class="form-grid">
+
+            <div class="form-group">
+              <label>취득일<span class="required">*</span></label>
+              <input type="date" id="b-acq-date" />
+            </div>
+
+            <div class="form-group">
+              <label>취득가액 (원)<span class="required">*</span></label>
+              <input type="number" id="b-acq-price" placeholder="예) 300000000" min="0" />
+            </div>
+
+            <div class="form-group">
+              <label>
+                필요경비 (원)
+                <span class="hint">취득세·중개료 등</span>
+              </label>
+              <input type="number" id="b-acq-cost" placeholder="예) 8000000" min="0" />
+            </div>
+
+            <div class="form-group">
+              <label>취득 당시 조정대상지역 여부<span class="required">*</span>
+                <span class="hint">소득세법 §104의3</span>
+              </label>
+              <select id="b-acq-regulated">
+                <option value="yes">조정대상지역 (해당)</option>
+                <option value="no" selected>비조정대상지역</option>
+              </select>
+            </div>
+
+          </div>
+
+          <div class="form-divider"></div>
+          <p class="form-section-title">거주·보유 현황</p>
+          <div class="form-grid">
+
+            <div class="form-group">
+              <label>실거주 기간 (개월)<span class="required">*</span></label>
+              <input type="number" id="b-reside-months" placeholder="예) 0" min="0" />
+            </div>
+
+            <div class="form-group" style="grid-column: span 2;">
+              <label style="margin-bottom:6px;">현재 이 주택에 거주 중?</label>
+              <label class="checkbox-group">
+                <input type="checkbox" id="b-living-now" />
+                <span>예, 현재 거주 중입니다</span>
+              </label>
+            </div>
+
+          </div>
+
+          <div class="form-divider"></div>
+          <p class="form-section-title">양도 예정 정보</p>
+          <div class="form-grid">
+
+            <div class="form-group">
+              <label>양도 예정일<span class="required">*</span></label>
+              <input type="date" id="b-sale-date" />
+            </div>
+
+            <div class="form-group">
+              <label>양도 예정가액 (원)<span class="required">*</span></label>
+              <input type="number" id="b-sale-price" placeholder="예) 500000000" min="0" />
+            </div>
+
+            <div class="form-group">
+              <label>
+                양도 시 조정대상지역 여부<span class="required">*</span>
+              </label>
+              <select id="b-sale-regulated">
+                <option value="yes">조정대상지역 (해당)</option>
+                <option value="no" selected>비조정대상지역</option>
+              </select>
+            </div>
+
+          </div>
+        </div><!-- /card-body -->
+      </div><!-- /house-b -->
+
+      <!-- ───── 주택 C (3채 선택 시 표시) ───── -->
+      <div class="house-card" id="house-c">
+        <div class="house-card-header">
+          <span class="house-label c">C</span>
+          <span class="house-name">주택 C</span>
+          <span class="house-sub">— 세 번째 취득한 주택</span>
+        </div>
+        <div class="house-card-body">
+
+          <p class="form-section-title">기본 정보</p>
+          <div class="form-grid">
+
+            <div class="form-group">
+              <label>주택 별칭 <span class="hint">예: 인천 아파트</span></label>
+              <input type="text" id="c-nickname" placeholder="예) 인천 아파트" />
+            </div>
+
+            <div class="form-group">
+              <label>소재지 (시·군·구)<span class="required">*</span></label>
+              <input type="text" id="c-location" placeholder="예) 인천 연수구" />
+            </div>
+
+          </div>
+
+          <div class="form-divider"></div>
+          <p class="form-section-title">취득 정보</p>
+          <div class="form-grid">
+
+            <div class="form-group">
+              <label>취득일<span class="required">*</span></label>
+              <input type="date" id="c-acq-date" />
+            </div>
+
+            <div class="form-group">
+              <label>취득가액 (원)<span class="required">*</span></label>
+              <input type="number" id="c-acq-price" placeholder="예) 250000000" min="0" />
+            </div>
+
+            <div class="form-group">
+              <label>
+                필요경비 (원)
+                <span class="hint">취득세·중개료 등</span>
+              </label>
+              <input type="number" id="c-acq-cost" placeholder="예) 6000000" min="0" />
+            </div>
+
+            <div class="form-group">
+              <label>취득 당시 조정대상지역 여부<span class="required">*</span>
+                <span class="hint">소득세법 §104의3</span>
+              </label>
+              <select id="c-acq-regulated">
+                <option value="yes">조정대상지역 (해당)</option>
+                <option value="no" selected>비조정대상지역</option>
+              </select>
+            </div>
+
+          </div>
+
+          <div class="form-divider"></div>
+          <p class="form-section-title">거주·보유 현황</p>
+          <div class="form-grid">
+
+            <div class="form-group">
+              <label>실거주 기간 (개월)<span class="required">*</span></label>
+              <input type="number" id="c-reside-months" placeholder="예) 12" min="0" />
+            </div>
+
+            <div class="form-group" style="grid-column: span 2;">
+              <label style="margin-bottom:6px;">현재 이 주택에 거주 중?</label>
+              <label class="checkbox-group">
+                <input type="checkbox" id="c-living-now" />
+                <span>예, 현재 거주 중입니다</span>
+              </label>
+            </div>
+
+          </div>
+
+          <div class="form-divider"></div>
+          <p class="form-section-title">양도 예정 정보</p>
+          <div class="form-grid">
+
+            <div class="form-group">
+              <label>양도 예정일<span class="required">*</span></label>
+              <input type="date" id="c-sale-date" />
+            </div>
+
+            <div class="form-group">
+              <label>양도 예정가액 (원)<span class="required">*</span></label>
+              <input type="number" id="c-sale-price" placeholder="예) 380000000" min="0" />
+            </div>
+
+            <div class="form-group">
+              <label>
+                양도 시 조정대상지역 여부<span class="required">*</span>
+              </label>
+              <select id="c-sale-regulated">
+                <option value="yes">조정대상지역 (해당)</option>
+                <option value="no" selected>비조정대상지역</option>
+              </select>
+            </div>
+
+          </div>
+        </div><!-- /card-body -->
+      </div><!-- /house-c -->
+
+    </div><!-- /house-cards -->
+  </section>
+
+  <!-- ═══════════════════ 경고 배너 ═══════════════════ -->
+  <div class="warn-banner">
+    <em class="warn-icon">⚠</em>
+    <span>
+      다주택 중과 유예는 <strong>2026년 5월 9일</strong>에 종료됩니다.
+      양도 예정일이 그 이후인 경우 중과세율(기본세율 + 20%p / 30%p)이 자동 적용됩니다.
+    </span>
+  </div>
+
+  <!-- ═══════════════════ 실행 버튼 ═══════════════════ -->
+  <div class="btn-row">
+    <button class="btn btn-secondary" onclick="resetForm()">초기화</button>
+    <button class="btn btn-primary"   onclick="runSimulation()">시뮬레이션 실행 →</button>
+  </div>
+
+  <!-- ═══════════════════ 4. 결과 영역 (플레이스홀더) ═══════════════════ -->
+  <section class="card" id="result-section">
+    <div class="card-header">
+      <div class="icon">④</div>
+      <h2>시뮬레이션 결과</h2>
+    </div>
+    <div class="card-body">
+      <div class="result-placeholder">
+        <div class="result-icon">📊</div>
+        <p>위의 정보를 입력하고 <strong>시뮬레이션 실행</strong>을 누르면 결과가 여기에 표시됩니다.</p>
+        <p class="result-sub">
+          양도 순서·시점 조합별 세후 실수령액 비교 · 최적 전략 추천 · AI 해설
+        </p>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<!-- 면책 문구 -->
+<footer>
+  * 이 시뮬레이터는 의사결정 보조 목적으로 제공되며, 확정적 세무 자문이 아닙니다.
+  실제 납부세액은 개별 사실관계 및 세무전문가 확인이 필요합니다.<br>
+  * 적용 세법 기준: 소득세법·지방세법 (2026년 4월 현재)
+</footer>
+
+<script>
+  // ────────────────────────────────────────────
+  // AI 자동 입력 (더미 추출 → 실제 API 연동 전 테스트용)
+  // ────────────────────────────────────────────
+
+  /**
+   * 더미 추출 함수: 자연어 텍스트를 받아 구조화된 데이터를 반환.
+   * 실제 AI 연동 시 이 함수만 Claude API 호출로 교체하면 됨.
+   * 일부 필드는 의도적으로 null로 반환하여 빨간 테두리 동작을 확인.
+   */
+  function dummyExtract(text) {
+    // 텍스트에서 간단한 키워드 감지로 더미 데이터 분기
+    const has3 = /3채|세\s*채/.test(text);
+
+    return {
+      // 공통 정보
+      'base-year':            '2026',
+      'household-members':    '2',
+      'basic-deduction-used': 'no',
+      houseCount:             has3 ? 3 : 2,
+
+      // 주택 A
+      'a-nickname':      '강남 아파트',
+      'a-location':      '서울 강남구',
+      'a-acq-date':      '2018-03-15',
+      'a-acq-price':     600000000,
+      'a-acq-cost':      12000000,
+      'a-acq-regulated': 'yes',
+      'a-reside-months': 36,
+      'a-living-now':    false,
+      'a-sale-date':     '2026-08-31',
+      'a-sale-price':    1200000000,
+      'a-sale-regulated':'yes',
+
+      // 주택 B — 일부 필드 null(비워둠)로 반환해 빨간 테두리 시연
+      'b-nickname':      '분당 빌라',
+      'b-location':      '경기 성남시 분당구',
+      'b-acq-date':      '2020-07-01',
+      'b-acq-price':     350000000,
+      'b-acq-cost':      null,       // ← AI가 파악 못한 항목
+      'b-acq-regulated': 'no',
+      'b-reside-months': null,       // ← 필수인데 null
+      'b-living-now':    true,
+      'b-sale-date':     null,       // ← 필수인데 null
+      'b-sale-price':    null,       // ← 필수인데 null
+      'b-sale-regulated':'no',
+
+      // 주택 C (3채일 때만 의미 있음)
+      'c-nickname':      has3 ? '인천 아파트' : null,
+      'c-location':      has3 ? '인천 연수구' : null,
+      'c-acq-date':      has3 ? '2022-01-10' : null,
+      'c-acq-price':     has3 ? 280000000 : null,
+      'c-acq-cost':      null,
+      'c-acq-regulated': has3 ? 'no' : null,
+      'c-reside-months': null,       // ← 필수인데 null
+      'c-living-now':    false,
+      'c-sale-date':     null,
+      'c-sale-price':    null,
+      'c-sale-regulated':has3 ? 'no' : null,
+    };
+  }
+
+  /**
+   * 필수 항목 정의 목록.
+   * key: 입력 요소 id, label: 사람이 읽기 쉬운 이름, house: 해당 주택(null=공통)
+   */
+  const REQUIRED_FIELDS = [
+    // 공통
+    { id: 'base-year',            label: '시뮬레이션 기준 연도',      house: null },
+    { id: 'household-members',    label: '세대원 수',                  house: null },
+    // 주택 A
+    { id: 'a-location',           label: '주택 A — 소재지',            house: 'a' },
+    { id: 'a-acq-date',           label: '주택 A — 취득일',            house: 'a' },
+    { id: 'a-acq-price',          label: '주택 A — 취득가액',          house: 'a' },
+    { id: 'a-acq-regulated',      label: '주택 A — 취득 당시 조정지역',house: 'a' },
+    { id: 'a-reside-months',      label: '주택 A — 실거주 기간',       house: 'a' },
+    { id: 'a-sale-date',          label: '주택 A — 양도 예정일',       house: 'a' },
+    { id: 'a-sale-price',         label: '주택 A — 양도 예정가액',     house: 'a' },
+    { id: 'a-sale-regulated',     label: '주택 A — 양도 시 조정지역',  house: 'a' },
+    // 주택 B
+    { id: 'b-location',           label: '주택 B — 소재지',            house: 'b' },
+    { id: 'b-acq-date',           label: '주택 B — 취득일',            house: 'b' },
+    { id: 'b-acq-price',          label: '주택 B — 취득가액',          house: 'b' },
+    { id: 'b-acq-regulated',      label: '주택 B — 취득 당시 조정지역',house: 'b' },
+    { id: 'b-reside-months',      label: '주택 B — 실거주 기간',       house: 'b' },
+    { id: 'b-sale-date',          label: '주택 B — 양도 예정일',       house: 'b' },
+    { id: 'b-sale-price',         label: '주택 B — 양도 예정가액',     house: 'b' },
+    { id: 'b-sale-regulated',     label: '주택 B — 양도 시 조정지역',  house: 'b' },
+    // 주택 C (3채일 때만 검사)
+    { id: 'c-location',           label: '주택 C — 소재지',            house: 'c' },
+    { id: 'c-acq-date',           label: '주택 C — 취득일',            house: 'c' },
+    { id: 'c-acq-price',          label: '주택 C — 취득가액',          house: 'c' },
+    { id: 'c-acq-regulated',      label: '주택 C — 취득 당시 조정지역',house: 'c' },
+    { id: 'c-reside-months',      label: '주택 C — 실거주 기간',       house: 'c' },
+    { id: 'c-sale-date',          label: '주택 C — 양도 예정일',       house: 'c' },
+    { id: 'c-sale-price',         label: '주택 C — 양도 예정가액',     house: 'c' },
+    { id: 'c-sale-regulated',     label: '주택 C — 양도 시 조정지역',  house: 'c' },
+  ];
+
+  /** AI 자동 입력 버튼 클릭 핸들러 */
+  function runAiExtract() {
+    const text = document.getElementById('nlp-area').value.trim();
+    if (!text) {
+      alert('먼저 상황을 자연어로 입력해 주세요.');
+      return;
+    }
+
+    // 버튼 로딩 상태 전환
+    const btn = document.getElementById('btn-ai-extract');
+    btn.classList.add('loading');
+    btn.disabled = true;
+
+    // 더미: 800ms 지연 후 추출 결과 반환 (실제 API 호출 시 이 부분 교체)
+    setTimeout(() => {
+      const data = dummyExtract(text);
+      fillForm(data);
+      highlightMissing(data);
+
+      btn.classList.remove('loading');
+      btn.disabled = false;
+    }, 800);
+  }
+
+  /**
+   * 추출 데이터를 폼 필드에 채우는 함수.
+   * null 값은 건너뜀(빈 상태 유지).
+   */
+  function fillForm(data) {
+    // 기존 에러 표시 초기화
+    clearErrors();
+
+    // 주택 수 토글
+    if (data.houseCount) setHouseCount(data.houseCount);
+
+    // 텍스트·숫자·날짜·select 입력
+    const fieldIds = Object.keys(data).filter(k => k !== 'houseCount');
+    fieldIds.forEach(id => {
+      const val = data[id];
+      const el = document.getElementById(id);
+      if (!el || val === null || val === undefined) return;
+
+      if (el.type === 'checkbox') {
+        el.checked = Boolean(val);
+      } else {
+        el.value = val;
+      }
+    });
+  }
+
+  /**
+   * 채워진 결과 기준으로 빈 필수 항목을 찾아
+   * 빨간 테두리 + 상단 배너를 표시하는 함수.
+   */
+  function highlightMissing(data) {
+    const currentHouseCount = document.getElementById('btn-3').classList.contains('active') ? 3 : 2;
+    const missing = [];
+
+    REQUIRED_FIELDS.forEach(field => {
+      // 주택 C는 3채일 때만 검사
+      if (field.house === 'c' && currentHouseCount < 3) return;
+
+      const el = document.getElementById(field.id);
+      if (!el) return;
+
+      const isEmpty = el.value === '' || el.value === null || el.value === undefined;
+      if (isEmpty) {
+        el.classList.add('field-error');
+        // 포커스 시 에러 해제
+        el.addEventListener('input',  clearFieldError, { once: true });
+        el.addEventListener('change', clearFieldError, { once: true });
+        missing.push(field.label);
+      }
+    });
+
+    // 배너 업데이트
+    const banner = document.getElementById('missing-banner');
+    const list   = document.getElementById('missing-list');
+
+    if (missing.length > 0) {
+      list.innerHTML = missing.map(m => `<li>${m}</li>`).join('');
+      banner.classList.add('visible');
+      // 배너 위치로 스크롤
+      banner.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else {
+      banner.classList.remove('visible');
+    }
+  }
+
+  /** 특정 필드의 에러 표시 해제 */
+  function clearFieldError(e) {
+    e.target.classList.remove('field-error');
+    // 남은 에러가 없으면 배너도 숨김
+    if (!document.querySelector('.field-error')) {
+      document.getElementById('missing-banner').classList.remove('visible');
+    }
+  }
+
+  /** 전체 에러 표시 초기화 */
+  function clearErrors() {
+    document.querySelectorAll('.field-error').forEach(el => el.classList.remove('field-error'));
+    document.getElementById('missing-banner').classList.remove('visible');
+  }
+
+  // ────────────────────────────────────────────
+  // 주택 수 토글 (2채 ↔ 3채)
+  // ────────────────────────────────────────────
+  function setHouseCount(n) {
+    // 버튼 상태 갱신
+    document.getElementById('btn-2').classList.toggle('active', n === 2);
+    document.getElementById('btn-3').classList.toggle('active', n === 3);
+
+    // 주택 C 카드 표시·숨김
+    document.getElementById('house-c').style.display = n === 3 ? 'block' : 'none';
+  }
+
+  // ────────────────────────────────────────────
+  // 시뮬레이션 실행 (추후 엔진 연결)
+  // ────────────────────────────────────────────
+  function runSimulation() {
+    // TODO: 각 엔진 모듈 호출 후 결과 렌더링
+    alert('시뮬레이션 엔진이 아직 연결되지 않았습니다.\n다음 단계에서 TaxComputationEngine을 붙입니다.');
+  }
+
+  // ────────────────────────────────────────────
+  // 폼 초기화
+  // ────────────────────────────────────────────
+  function resetForm() {
+    if (!confirm('입력한 내용을 모두 초기화하시겠습니까?')) return;
+    document.querySelectorAll('input, select, textarea').forEach(el => {
+      if (el.type === 'checkbox') { el.checked = false; }
+      else if (el.tagName === 'SELECT') { el.selectedIndex = 0; }
+      else { el.value = ''; }
+    });
+    // 기준 연도 기본값 복원
+    document.getElementById('base-year').value = '2026';
+    // 주택 수 2채로 복원
+    setHouseCount(2);
+    // 에러 표시 초기화
+    clearErrors();
+  }
+</script>
+
+</body>
+</html>

@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TaxOpt — 시뮬레이션 결과</title>
+  <style>
+    /* ───────────────────────────── 기본 리셋 & 변수 (index.html 동일) ───────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --blue:    #2563eb;
+      --blue-lt: #eff6ff;
+      --blue-dk: #1d4ed8;
+      --gray-50: #f9fafb;
+      --gray-100:#f3f4f6;
+      --gray-200:#e5e7eb;
+      --gray-400:#9ca3af;
+      --gray-600:#4b5563;
+      --gray-800:#1f2937;
+      --red:     #dc2626;
+      --green:   #16a34a;
+      --green-lt:#f0fdf4;
+      --green-bd:#86efac;
+      --radius:  8px;
+      --shadow:  0 1px 3px rgba(0,0,0,.1), 0 1px 2px rgba(0,0,0,.06);
+    }
+
+    body {
+      font-family: 'Apple SD Gothic Neo', 'Malgun Gothic', -apple-system, sans-serif;
+      background: var(--gray-50);
+      color: var(--gray-800);
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    /* ───────────────────────────── 헤더 ───────────────────────────── */
+    header {
+      background: var(--blue);
+      color: #fff;
+      padding: 16px 24px;
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+    }
+    header h1 { font-size: 18px; font-weight: 700; letter-spacing: -.3px; }
+    header p  { font-size: 12px; opacity: .8; }
+    header .back-btn {
+      margin-left: auto;
+      padding: 6px 14px;
+      background: rgba(255,255,255,.15);
+      border: 1px solid rgba(255,255,255,.3);
+      border-radius: var(--radius);
+      color: #fff;
+      font-size: 12px;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+      text-decoration: none;
+      transition: background .15s;
+    }
+    header .back-btn:hover { background: rgba(255,255,255,.25); }
+
+    /* ───────────────────────────── 메인 레이아웃 ───────────────────────────── */
+    main {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 24px 16px 48px;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    /* ───────────────────────────── 섹션 카드 공통 ───────────────────────────── */
+    .card {
+      background: #fff;
+      border: 1px solid var(--gray-200);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
+    .card-header {
+      padding: 14px 20px;
+      border-bottom: 1px solid var(--gray-200);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .card-header .icon {
+      width: 22px; height: 22px;
+      background: var(--blue-lt);
+      color: var(--blue);
+      border-radius: 4px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 13px; font-weight: 700;
+    }
+    .card-header h2 { font-size: 14px; font-weight: 600; }
+    .card-header .badge {
+      margin-left: auto;
+      font-size: 11px;
+      background: var(--blue-lt);
+      color: var(--blue);
+      padding: 2px 8px;
+      border-radius: 99px;
+      font-weight: 600;
+    }
+    .card-body { padding: 20px; }
+
+    /* ───────────────────────────── 1. 최적 전략 추천 카드 ───────────────────────────── */
+    .best-card {
+      background: #fff;
+      border: 2px solid var(--green);
+      border-radius: var(--radius);
+      box-shadow: 0 2px 8px rgba(22,163,74,.15);
+    }
+    .best-card .card-header {
+      background: var(--green-lt);
+      border-bottom: 1px solid var(--green-bd);
+    }
+    .best-card .card-header .icon {
+      background: #dcfce7;
+      color: var(--green);
+    }
+    .best-card .card-header .badge {
+      background: var(--green);
+      color: #fff;
+    }
+
+    /* 전략 제목 */
+    .strategy-title {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--gray-800);
+      letter-spacing: -.3px;
+      margin-bottom: 16px;
+    }
+    .strategy-title .arrow {
+      display: inline-block;
+      margin: 0 6px;
+      color: var(--green);
+    }
+
+    /* 지표 3개 가로 배치 */
+    .metrics-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+    }
+    .metric-box {
+      background: var(--gray-50);
+      border: 1px solid var(--gray-200);
+      border-radius: var(--radius);
+      padding: 14px 16px;
+    }
+    .metric-box .metric-label {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--gray-400);
+      text-transform: uppercase;
+      letter-spacing: .5px;
+      margin-bottom: 6px;
+    }
+    .metric-box .metric-value {
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--gray-800);
+      letter-spacing: -.5px;
+    }
+    .metric-box .metric-value.green { color: var(--green); }
+    .metric-box .metric-sub {
+      font-size: 11px;
+      color: var(--gray-400);
+      margin-top: 3px;
+    }
+
+    /* ───────────────────────────── 2. 전략별 비교표 ───────────────────────────── */
+    .compare-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+    .compare-table thead th {
+      background: var(--gray-50);
+      padding: 10px 16px;
+      text-align: left;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--gray-600);
+      border-bottom: 2px solid var(--gray-200);
+    }
+    .compare-table thead th:not(:first-child) { text-align: right; }
+
+    .compare-table tbody td {
+      padding: 13px 16px;
+      border-bottom: 1px solid var(--gray-100);
+      vertical-align: middle;
+    }
+    .compare-table tbody td:not(:first-child) { text-align: right; }
+    .compare-table tbody tr:last-child td { border-bottom: none; }
+
+    /* 최적 전략 행 강조 */
+    .compare-table tbody tr.best-row td {
+      background: var(--green-lt);
+    }
+    .compare-table tbody tr.best-row td:first-child {
+      border-left: 3px solid var(--green);
+      padding-left: 13px;
+    }
+
+    /* 순서 배지 */
+    .order-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-weight: 600;
+    }
+    .house-dot {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 22px; height: 22px;
+      border-radius: 50%;
+      font-size: 11px;
+      font-weight: 700;
+      color: #fff;
+      flex-shrink: 0;
+    }
+    .house-dot.a { background: #2563eb; }
+    .house-dot.b { background: #7c3aed; }
+    .house-dot.c { background: #0891b2; }
+
+    .order-arrow { font-size: 12px; color: var(--gray-400); }
+
+    /* 최적 배지 */
+    .best-tag {
+      display: inline-block;
+      font-size: 10px;
+      background: var(--green);
+      color: #fff;
+      padding: 2px 7px;
+      border-radius: 99px;
+      font-weight: 600;
+      margin-left: 8px;
+      vertical-align: middle;
+    }
+
+    /* 세액 수치 */
+    .tax-value { font-weight: 600; color: var(--gray-800); }
+    .net-value  { font-weight: 700; }
+    .net-value.best { color: var(--green); }
+
+    /* ───────────────────────────── 3. AI 해설 ───────────────────────────── */
+    .ai-explanation {
+      font-size: 14px;
+      line-height: 1.9;
+      color: var(--gray-800);
+    }
+    .ai-explanation p + p { margin-top: 12px; }
+
+    /* 법령 인용 태그 */
+    .law-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 16px;
+    }
+    .law-tag {
+      display: inline-block;
+      font-size: 11px;
+      background: var(--blue-lt);
+      color: var(--blue);
+      border: 1px solid #bfdbfe;
+      border-radius: 99px;
+      padding: 3px 10px;
+      font-weight: 600;
+    }
+
+    /* AI 출처 표시 */
+    .ai-source {
+      margin-top: 14px;
+      font-size: 11px;
+      color: var(--gray-400);
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .ai-source::before {
+      content: '';
+      display: inline-block;
+      width: 14px; height: 14px;
+      background: var(--blue-lt);
+      border-radius: 3px;
+      flex-shrink: 0;
+    }
+
+    /* ───────────────────────────── 4. 쟁점 경고 카드 ───────────────────────────── */
+    .warn-card {
+      background: #fffbeb;
+      border: 1px solid #fcd34d;
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
+    .warn-card .card-header {
+      background: #fefce8;
+      border-bottom: 1px solid #fde68a;
+    }
+    .warn-card .card-header .icon {
+      background: #fef9c3;
+      color: #b45309;
+    }
+    .warn-card .card-header h2 { color: #92400e; }
+    .warn-card .card-header .badge {
+      background: #fef3c7;
+      color: #b45309;
+    }
+
+    .warn-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .warn-item {
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+      background: #fff;
+      border: 1px solid #fde68a;
+      border-radius: 6px;
+      padding: 12px 14px;
+    }
+    .warn-item .warn-icon {
+      font-style: normal;
+      font-size: 16px;
+      flex-shrink: 0;
+      line-height: 1.4;
+    }
+    .warn-item .warn-text { font-size: 13px; color: #92400e; line-height: 1.7; }
+    .warn-item .warn-text strong { font-weight: 700; }
+
+    /* ───────────────────────────── 면책 문구 ───────────────────────────── */
+    footer {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 0 16px 32px;
+      font-size: 11px;
+      color: var(--gray-400);
+      line-height: 1.7;
+    }
+
+    /* ───────────────────────────── 반응형 ───────────────────────────── */
+    @media (max-width: 600px) {
+      .metrics-row { grid-template-columns: 1fr; }
+      .strategy-title { font-size: 17px; }
+      .metric-box .metric-value { font-size: 18px; }
+      .compare-table { font-size: 13px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ════════════════════════════════ 헤더 ════════════════════════════════ -->
+<header>
+  <h1>TaxOpt</h1>
+  <p>다주택자 양도 의사결정 최적화</p>
+  <a href="index.html" class="back-btn">← 입력으로 돌아가기</a>
+</header>
+
+<!-- ════════════════════════════════ 본문 ════════════════════════════════ -->
+<main>
+
+  <!-- ── 1. 최적 전략 추천 카드 ── -->
+  <section class="best-card">
+    <div class="card-header">
+      <div class="icon">★</div>
+      <h2>최적 전략 추천</h2>
+      <span class="badge">최적</span>
+    </div>
+    <div class="card-body">
+
+      <!-- 추천 전략 제목 -->
+      <p class="strategy-title">
+        <span class="house-dot b">B</span>
+        <span class="arrow">→</span>
+        <span class="house-dot a">A</span>
+        &nbsp;순서로 양도하는 것이 최적입니다.
+      </p>
+
+      <!-- 핵심 지표 3개 -->
+      <div class="metrics-row">
+        <div class="metric-box">
+          <div class="metric-label">세후 실수령액</div>
+          <div class="metric-value green">12억 3,400만원</div>
+          <div class="metric-sub">B → A 전략 기준</div>
+        </div>
+        <div class="metric-box">
+          <div class="metric-label">절세 효과</div>
+          <div class="metric-value green">8,200만원</div>
+          <div class="metric-sub">최악 전략(A→B) 대비</div>
+        </div>
+        <div class="metric-box">
+          <div class="metric-label">총 양도소득세</div>
+          <div class="metric-value">3,600만원</div>
+          <div class="metric-sub">두 주택 합산 세액</div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ── 2. 전략별 비교표 ── -->
+  <section class="card">
+    <div class="card-header">
+      <div class="icon">표</div>
+      <h2>전략별 비교</h2>
+      <span class="badge">2가지 조합</span>
+    </div>
+    <div class="card-body" style="padding: 0;">
+      <table class="compare-table">
+        <thead>
+          <tr>
+            <th>양도 순서</th>
+            <th>주택 B 양도세</th>
+            <th>주택 A 양도세</th>
+            <th>합산 양도세</th>
+            <th>세후 실수령액</th>
+          </tr>
+        </thead>
+        <tbody>
+          <!-- 최적 전략 행 — green 강조 -->
+          <tr class="best-row">
+            <td>
+              <span class="order-badge">
+                <span class="house-dot b">B</span>
+                <span class="order-arrow">→</span>
+                <span class="house-dot a">A</span>
+              </span>
+              <span class="best-tag">최적</span>
+            </td>
+            <td class="tax-value">0원 <small style="color:var(--gray-400);font-size:11px;">(비과세)</small></td>
+            <td class="tax-value">3,600만원</td>
+            <td class="tax-value">3,600만원</td>
+            <td class="net-value best">12억 3,400만원</td>
+          </tr>
+          <!-- 비교 전략 행 -->
+          <tr>
+            <td>
+              <span class="order-badge">
+                <span class="house-dot a">A</span>
+                <span class="order-arrow">→</span>
+                <span class="house-dot b">B</span>
+              </span>
+            </td>
+            <td class="tax-value">5,800만원</td>
+            <td class="tax-value">6,000만원</td>
+            <td class="tax-value">11,800만원</td>
+            <td class="net-value">11억 5,200만원</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ── 3. AI 해설 ── -->
+  <section class="card">
+    <div class="card-header">
+      <div class="icon">AI</div>
+      <h2>AI 해설</h2>
+      <span class="badge">Claude 생성</span>
+    </div>
+    <div class="card-body">
+
+      <div class="ai-explanation">
+        <p>
+          <strong>B 주택을 먼저 양도하면</strong>, A 주택이 1세대 1주택 비과세 요건(보유 2년·조정지역 거주 2년)을
+          충족하게 됩니다. 이에 따라 A 주택의 양도차익 중 <strong>12억원 이하 부분은 전액 비과세</strong>되며,
+          12억원 초과분에 대해서만 장기보유특별공제를 적용한 세액이 산출됩니다.
+        </p>
+        <p>
+          반면 <strong>A 주택을 먼저 양도하면</strong> 매도 시점에 세대 내 주택이 2채 이상이므로 1세대 1주택
+          비과세 요건을 충족하지 못합니다. A 주택은 다주택자 과세 구조(2026.5.9. 이전 중과 유예 종료 전제)가
+          적용되어 양도세 부담이 대폭 증가합니다.
+        </p>
+        <p>
+          B 주택을 먼저 처분할 때 발생하는 세금은 <strong>일시적 2주택 특례 미해당</strong>(취득 후 3년 경과)으로
+          일반세율이 적용되지만, A 주택의 비과세 혜택이 이를 상쇄하고도 남아 전체 세후 실수령액이 최대화됩니다.
+        </p>
+      </div>
+
+      <!-- 관련 법령 태그 -->
+      <div class="law-tags">
+        <span class="law-tag">소득세법 제89조 (1세대 1주택 비과세)</span>
+        <span class="law-tag">소득세법 제95조 (장기보유특별공제)</span>
+        <span class="law-tag">소득세법 제104조 (세율)</span>
+        <span class="law-tag">소득세법 시행령 제154조 (거주 요건)</span>
+        <span class="law-tag">소득세법 시행령 제155조 (일시적 2주택)</span>
+      </div>
+
+      <!-- AI 생성 출처 표시 -->
+      <p class="ai-source">
+        이 해설은 Claude AI가 생성한 참고용 설명입니다. 확정적 세무 자문이 아닙니다.
+      </p>
+
+    </div>
+  </section>
+
+  <!-- ── 4. 쟁점 경고 카드 ── -->
+  <section class="warn-card">
+    <div class="card-header">
+      <div class="icon">!</div>
+      <h2>쟁점 경고</h2>
+      <span class="badge">검토 필요</span>
+    </div>
+    <div class="card-body">
+      <div class="warn-list">
+
+        <div class="warn-item">
+          <i class="warn-icon">⚠️</i>
+          <div class="warn-text">
+            <strong>거주기간 요건 경계 해당:</strong>
+            이 시나리오는 거주기간 요건 경계(24개월)에 해당합니다.
+            실거주 기간 산정 방법(입·퇴거일 기준, 주민등록 이전일 기준)에 따라
+            비과세 적용 여부가 달라질 수 있으므로 <strong>전문가 확인을 권장합니다.</strong>
+          </div>
+        </div>
+
+        <div class="warn-item">
+          <i class="warn-icon">⚠️</i>
+          <div class="warn-text">
+            <strong>일시적 2주택 특례 해석:</strong>
+            2025년 대법원 판결(대법원 2025두XXXXX)에 따라 일시적 2주택 특례는
+            엄격하게 해석됩니다. 신규 주택 취득일로부터 3년 이내 기존 주택 양도 요건을
+            충족하는지 취득 계약서·등기 일자를 기준으로 재확인하세요.
+          </div>
+        </div>
+
+        <div class="warn-item">
+          <i class="warn-icon">ℹ️</i>
+          <div class="warn-text">
+            <strong>다주택 중과 유예 종료 전제:</strong>
+            본 시뮬레이션은 <strong>2026.5.9. 다주택 중과 유예 종료</strong>를 전제로
+            계산되었습니다. 유예 연장 여부에 따라 세액이 변동될 수 있습니다.
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<!-- ════════════════════════════════ 면책 문구 ════════════════════════════════ -->
+<footer>
+  <p>
+    본 시뮬레이션 결과는 사용자가 입력한 정보를 기반으로 산출된 참고용 수치이며,
+    확정적 세무 자문이 아닙니다. 실제 양도 전 반드시 세무사 등 전문가와 상담하시기 바랍니다.
+  </p>
+  <p style="margin-top:4px;">
+    TaxOpt PoC · KAIST CAIO 과정 · 세법 기준일 2026-04-05
+  </p>
+</footer>
+
+</body>
+</html>

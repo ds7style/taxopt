@@ -82,6 +82,12 @@
 - **권장 디렉토리 구조**: 의사결정 #7 참조
 - **PRD와의 관계**: PRD 8-8 "계산엔진: JavaScript(클라이언트 사이드)"는 "어디서 돌릴 것인가" 결정. 본 의사결정은 "어떻게 모듈화할 것인가" 결정으로 PRD와 충돌하지 않음.
 - **영향 범위**: 모든 코드 파일 구조, Codex 작업지시서
+| 2026-04-27 (v3) | #5 보강: 파일명 언더바(snake_case) 명명 규칙 추가. 디렉토리 구조 예시 갱신 |
+- **파일명 명명 규칙** (2026-04-27 v3 추가):
+  - 모든 .js 파일명은 **언더바(snake_case)** 사용
+  - 예: `tax_rules.js`, `tax_engine.js`, `scenario_engine.js`, `input_collector.js`, `result_renderer.js`, `explanation_engine.js`
+  - 테스트 파일도 동일: `tests/test_cases.js`
+  - 이유: Python 관행 + GitHub URL 가독성 + 일관성
 
 ### #6. 산출물 영속화
 
@@ -113,29 +119,30 @@
   | GitHub Pages | 활성화 (main / root) |
   | 기존 caio-poc | Archive 처리 |
 - **디렉토리 구조**:
-taxopt/
-├── README.md
-├── .gitignore
-├── LICENSE
-├── index.html              (4/26 만든 index_v0.5_preview.html을 승격)
-├── result.html             (05_result_screen.html을 승격)
-├── js/
-│   ├── tax-rules.js
-│   ├── tax-engine.js
-│   ├── scenario-engine.js
-│   ├── input-collector.js
-│   ├── result-renderer.js
-│   └── explanation-engine.js   (v0.4)
-├── tests/
-│   └── test-cases.js
-├── docs/
-│   ├── 01_calc_engine_spec_v0_1.md  (4/28 확정 후 추가)
-│   ├── 02_saleplan_ui_design.md
-│   ├── 98_backlog.md
-│   └── 99_decision_log.md
-└── archive/
-├── 04_index_input_screen.html
-└── 05_result_screen.html
+  taxopt/
+  ├── README.md
+  ├── .gitignore
+  ├── LICENSE
+  ├── index.html
+  ├── result.html
+  ├── js/
+  │   ├── tax_rules.js              ← 언더바
+  │   ├── tax_engine.js
+  │   ├── scenario_engine.js
+  │   ├── input_collector.js
+  │   ├── result_renderer.js
+  │   └── explanation_engine.js
+  ├── tests/
+  │   └── test_cases.js
+  ├── docs/
+  │   ├── 01_calc_engine_spec_v0_1.md
+  │   ├── 02_saleplan_ui_design.md
+  │   ├── 04_test_cases_manual.md
+  │   ├── 98_backlog.md
+  │   └── 99_decision_log.md
+  └── archive/
+      ├── 04_index_input_screen.html
+      └── 05_result_screen.html
 - **이유**:
   - 기존 caio-poc는 초기에 만들어 디렉토리 구조·명명 규칙이 정리되지 않음
   - 본격 코드 작업(4/28 v0.1 구현부터) 전에 정리해야 git history 안정

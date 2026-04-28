@@ -32,7 +32,36 @@
 - **처리 시점**: 4/28 영속화 마무리 또는 v0.2 작업 시작 시
 - **차단 사항 여부**: 아니오
 
+## 미처리 이슈 (Open)
+
+### B-004. CRLF/LF 줄바꿈 통일
+- **발견일**: 2026-04-28
+- **출처**: 4/28 git add 시 "LF will be replaced by CRLF" 경고
+- **내용**:
+  - Windows 환경에서 git이 자동으로 LF↔CRLF 변환
+  - 현재는 동작에 영향 없으나, 팀원이 다른 OS에서 작업 시 git diff 노이즈 발생 가능
+- **재발 방지 방안**:
+  - repo에 `.gitattributes` 파일 추가 (텍스트 파일 LF 통일)
+  - 또는 각자 `git config --global core.autocrlf input` 설정
+- **영향도**: 매우 낮음 (현재 동작 무관)
+- **처리 시점**: 5/7 발표 이후 또는 팀원 작업 합류 시점
+- **차단 사항 여부**: 아니오
+
 ---
 
 ## 처리 완료 (Closed)
-현재 없음.
+
+### B-003. 코드 파일 push 시 index.html 연결 누락 (해결됨)
+- **발견일**: 2026-04-28
+- **출처**: 4/28 콘솔 검증 시 `window.TaxOpt undefined` 에러
+- **내용**:
+  - 4/27에 `js/tax_rules.js`를 push했으나 `index.html`에 `<script src="js/tax_rules.js"></script>` 연결 누락
+  - 의사결정 #5("비-모듈 `<script>` 다중 로드")의 후속 조치가 빠짐
+- **처리 결과 (2026-04-28)**:
+  - 4/28 commit `879cbdd`에서 `<script src="js/tax_rules.js"></script>` 추가
+  - GitHub Pages 검증 통과 (`selfTest()` ok: true)
+- **재발 방지 적용 사항**:
+  - 4/29 이후 모든 Code 작업지시서의 완료 기준에 다음 항목 추가:
+    - "관련 HTML 파일(index.html, result.html)에 새 모듈의 `<script src>` 태그가 추가됨"
+    - "외부 `<script>`는 인라인 `<script>` 이전에 배치"
+  - 4/29 작업지시서 02(`tax_engine.js`)부터 적용

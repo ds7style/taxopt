@@ -9,6 +9,7 @@
 
 | 날짜 | 변경 내용 |
 |---|---|
+| 2026-04-29 (v9) | #9 사후 인정 확정 — Claude Code 검증 + Node.js 회귀 테스트 67/0 통과로 tax_rules.js·tax_rules.test.js 정식 인정 |
 | 2026-04-29 (v8) | #9 정정 — 작업 창 분담 원칙 명문화 (작업 창 #1-1의 .js 코드 최종 산출 금지, Claude Code 단일 책임). 작업 창 #1-1 자체 분석에 따른 정정 |
 | 2026-04-29 (v7) | #5 보강(테스트 파일 `*.test.js`), #2 일정·산출물 진행 갱신, #9 신규(작업지시서 사후 운명 — v8에서 정정), v0.2 검증팀 옵션 A·후퇴 트리거 옵션 C·데모 케이스 5/5 이연 등 운영 결정 흡수 |
 | 2026-04-28 (v6) | 작업 창 번호 체계 계층형 정정(`#2`→`#1-1`), 작업지시서 표기 통일(`#1`→`01`) |
@@ -47,7 +48,7 @@
 
   | 버전 | 범위 | 목표일 | 상태 |
   |---|---|---|---|
-  | v0.1 | 단일 주택 일반과세 계산 | 4/29(수) | ⏳ 진행 중 (tax_rules.js 완성, tax_engine.js 미착수) |
+  | v0.1 | 단일 주택 일반과세 계산 | 4/29(수) | ⏳ 진행 중 (tax_rules.js 사후 인정 확정, tax_engine.js 미착수) |
   | v0.2 | + 장특공 + 1세대1주택 비과세 | 5/2(토) | ❌ 미착수 |
   | v0.3 | + 다주택 중과 + 시나리오 엔진 + 상태전이 | 5/4(월) | ❌ 미착수 |
   | v0.4 | + 결과 화면 동적 렌더링 + 설명 문장 | 5/6(수) | ❌ 미착수 |
@@ -150,9 +151,9 @@ taxopt/
 ├── LICENSE
 ├── index.html                            ← v0.5 ②.5 카드 포함, tax_rules.js 연결
 ├── js/
-│   └── tax_rules.js                      ← v0.1.1 (4/28 영속화 — 사후 인정, 의사결정 #9 참조)
+│   └── tax_rules.js                      ← v0.1.1 사후 인정 확정 (의사결정 #9)
 ├── tests/
-│   └── tax_rules.test.js                 ← 회귀 테스트 (4/28 영속화 — 사후 인정)
+│   └── tax_rules.test.js                 ← 회귀 테스트 (사후 인정 확정)
 ├── docs/
 │   ├── v0.1/
 │   │   ├── 01_calc_engine_spec.md       ← 명세서 v0.1.1 (4/28)
@@ -164,8 +165,8 @@ taxopt/
 │   ├── 04_test_cases_manual.xlsx         ← 4/27 양식 (구글 시트 export)
 │   ├── 05_code_work_orders/              ← Code 작업지시서 디렉토리
 │   │   └── 01_tax_rules.md               ← 4/28
-│   ├── 98_backlog.md                     ← B-001~B-005 추적
-│   └── 99_decision_log.md                ← 본 파일 v8
+│   ├── 98_backlog.md                     ← B-001~B-006 추적
+│   └── 99_decision_log.md                ← 본 파일 v9
 └── archive/
 ├── 04_index_input_screen.html        ← v0 입력 화면 백업
 └── 05_result_screen.html             ← v0 결과 화면 백업
@@ -197,9 +198,9 @@ taxopt/
 - **명명 통일** (v5 보강): "Codex" → "Code" 일괄 정정
 - **영향 범위**: 명세서·코드·검증·발표 데모 전체
 
-### #9. 작업 창 분담 원칙 (2026-04-29 v8 정정)
+### #9. 작업 창 분담 원칙 (2026-04-29 v8 정정 → v9 사후 인정 확정 반영)
 
-- **결정일**: 2026-04-29 (v7 초안 → v8 정정)
+- **결정일**: 2026-04-29 (v7 초안 → v8 정정 → v9 사후 인정 확정 반영)
 - **배경**: 4/28 작업 창 #1-1이 `tax_rules.js`와 `tax_rules.test.js`를 직접 산출했으나, 작업 창 #1-1 자신의 사후 분석에서 이는 Claude Code의 책임 영역을 침범한 것임이 드러남. 같은 코드가 두 곳에 존재할 위험과 정본 모호성 발생 가능.
 - **결정**: 작업 창 간 산출물 분담을 다음과 같이 명문화한다.
 
@@ -213,14 +214,21 @@ taxopt/
   - 작업 창 #1-1의 .js 산출물은 **참고 코드 골격(reference skeleton)** 수준까지만 허용. 완성된 코드 전체 산출 금지.
   - 작업지시서는 "참고 골격 없이도" Claude Code가 단독 작성 가능하도록 충분히 상세해야 함.
   - 실제 .js 파일의 영속화(GitHub repo의 `js/`, `tests/`)는 **Claude Code의 단일 책임**.
-- **사후 처리** (4/28 사고 정리):
-  - 작업 창 #1-1이 4/28에 산출한 `tax_rules.js`와 `tax_rules.test.js`는 selfTest() ok: true 검증 통과 상태이므로 **사후 인정** 처리. GitHub repo에 보존.
-  - Claude Code는 이를 받아 **검증·확인 작업** 수행: (1) 회귀 테스트 자동 실행, (2) 모듈 스펙과의 정합성 점검, (3) 명세서와의 정합성 점검, (4) 종합 보고.
-  - 검증 통과 시 사후 인정 확정. 검증 미통과 시 정정 후 다시 push.
+
+- **사후 처리 (4/28 사고 정리) — 4/29 검증 통과로 확정 완료**:
+  - 작업 창 #1-1이 4/28에 산출한 `tax_rules.js`와 `tax_rules.test.js`에 대해 Claude Code가 검증 작업 수행
+  - **검증 결과 (2026-04-29)**:
+    - Claude Code 4단계 점검 (회귀 테스트 어서션 분석 + 모듈 스펙 정합성 + 명세서 정합성 + 종합 보고): ✅ 통과
+    - .NET IEEE 754 double 직접 연산 (PowerShell): ✅ 7개 등식 모두 eq=True int=True
+    - 사용자 PC Node.js 회귀 테스트 실제 실행: ✅ **67건 통과 / 0건 실패**
+  - **사후 인정 확정 (2026-04-29)**: `js/tax_rules.js`와 `tests/tax_rules.test.js`를 v0.1 코드 자산으로 정식 인정. GitHub repo 영구 보존.
+  - 의사결정 #9 v8 사후 처리 절차 첫 적용 사례. 절차 작동 입증.
+
 - **재발 방지**:
   - 작업 창 #1-1의 시스템 프롬프트에 본 #9 원칙 반영 (사용자 직접 또는 작업 창 #1-1에 메시지 전달)
   - 향후 작업지시서 02(`tax_engine.js`)부터 본 원칙 엄격 적용
-  - 백로그 B-006 (선택 등록): "작업 창 #1-1 시스템 프롬프트 #9 반영" 추적
+  - 백로그 B-006 (2026-04-29 등록): 회귀 테스트 자동화 (GitHub Actions)로 사후 인정 절차 자동화
+
 - **영향 범위**: 모든 작업 창 분담, Code 작업지시서 작성 원칙, 4/29 이후 코드 작업 흐름
 
 ---
@@ -240,17 +248,17 @@ taxopt/
 
 | 산출물 | 상태 | 영속화 |
 |---|---|---|
-| 의사결정 로그 v8 | ✅ 본 파일 | docs/99_decision_log.md (Claude.ai 업로드 필요) |
-| 백로그 (B-001~B-005) | ✅ 작성 완료 | docs/98_backlog.md |
+| 의사결정 로그 v9 | ✅ 본 파일 | docs/99_decision_log.md (Claude.ai 업로드 필요) |
+| 백로그 (B-001~B-006) | ✅ 작성 완료 (B-006 4/29 등록) | docs/98_backlog.md |
 | salePlan UI 설계 | ✅ 검증 통과 | docs/02_saleplan_ui_design.md |
 | 수기 정답 양식 | ✅ 작성 완료 | docs/04_test_cases_manual.xlsx |
 | 명세서 v0.1.1 | ✅ 검증 통과 (3자 일치) | docs/v0.1/01_calc_engine_spec.md |
 | 입력 스키마 v0.1.1 | ✅ 검증 통과 | docs/v0.1/03_input_schema.md |
 | TC-001~005 골든셋 | ✅ 검증 통과 (100%) | docs/v0.1/06_test_cases.md |
 | tax_rules 모듈 스펙 v0.1.1 | ✅ 작성 완료 | docs/v0.1/modules/tax_rules.md |
-| tax_rules.js v0.1.1 | ✅ selfTest ok: true (사후 인정 처리, #9 v8) | js/tax_rules.js |
-| tax_rules.test.js | ✅ 회귀 테스트 (사후 인정 처리) | tests/tax_rules.test.js |
-| 작업지시서 01 (tax_rules) | ✅ 작성 완료 (Claude Code 검증 작업으로 활용) | docs/05_code_work_orders/01_tax_rules.md |
+| **tax_rules.js v0.1.1** | ✅ **selfTest ok: true + Node.js 67/0 (사후 인정 확정, #9 v9)** | js/tax_rules.js |
+| **tax_rules.test.js** | ✅ **회귀 테스트 67건 통과 (사후 인정 확정)** | tests/tax_rules.test.js |
+| 작업지시서 01 (tax_rules) | ✅ 작성 완료 (Claude Code 검증 작업 활용 완료) | docs/05_code_work_orders/01_tax_rules.md |
 | index.html 승격 | ✅ ②.5 카드 + tax_rules.js 연결 + GitHub Pages 검증 | repo root |
 | **tax_engine.js** | ❌ 미착수 (4/29 진행 예정) | js/tax_engine.js |
 | 작업지시서 02 (tax_engine) | ❌ 미착수 | docs/05_code_work_orders/02_tax_engine.md |
@@ -262,7 +270,7 @@ taxopt/
 |---|---|---|
 | 4/27 (월) ✅ | 의사결정 #1~#7, salePlan UI, GitHub repo, tax_rules.js v0.1, xlsx 양식 | |
 | 4/28 (화) ✅ | 명세서 v0.1.1 검증 통과 (3자 일치), 영속화 일괄 (6건), index.html 승격 | **명세서 검증 완료** |
-| 4/29 (수) ⏳ | 의사결정 로그 v8, Claude Code 첫 도입 (작업지시서 01 검증), 작업지시서 02 작성·실행 | **v0.1 코드 완료 목표** |
+| 4/29 (수) ⏳ | 의사결정 로그 v8·v9, Claude Code 첫 도입 (검증 + 사후 인정 확정), 작업지시서 02 작성·실행 | **v0.1 코드 완료 목표** |
 | 4/30 (목) | v0.2 명세서, 검증팀 v0.2 손계산 시작 | |
 | 5/1 (금) | v0.2 검증 완료, v0.2 코드 작업지시서·실행 | **v0.2 완료** |
 | 5/2 (토) ~ 5/3 (일) | v0.3 명세·코드 (다주택 중과·시나리오 엔진) | |

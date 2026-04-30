@@ -3,13 +3,13 @@
 | 항목 | 내용 |
 |---|---|
 | 문서 ID | `docs/v0.1/03_input_schema.md` |
-| 버전 | v0.1.1 |
+| 버전 | v0.1.1 | v0.1.2 |
 | 상태 | ✅ 검증 완료 (2026-04-28) |
 | 검증 방식 | 검증팀 손계산 + 국세청 홈택스 모의계산 3자 일치 |
 | 작성일 | 2026-04-26 |
-| 검증 완료일 | 2026-04-28 |
-| 관련 문서 | `01_calc_engine_spec.md`, `06_test_cases.md`, `02_saleplan_ui_design.md` |
-| 다음 버전 | v0.2 (조정대상지역·다주택 입력 활성화 예정) |
+| 검증 완료일 | 2026-04-28 | 2026-04-28 (단일 주택 일반과세 본문) / 2026-04-30 (v0.6+ 확장 필드 추가, 미사용 처리) |
+| 관련 문서 | (기존 3건) | 기존 + `docs/99_decision_log.md` (의사결정 #10) |
+| 다음 버전 | v0.2 (조정대상지역·다주택 입력 활성화 예정) | v0.2 (조정대상지역·다주택 입력 활성화 예정), v0.6+ (조특법 특례주택 입력 활성화 예정) |
 
 ---
 
@@ -57,8 +57,27 @@ House = {
   // 양도
   expectedSaleDate:       "YYYY-MM-DD",            // ISO date
   expectedSalePrice:      number,                  // 원 단위 정수 ≥ 1
-  saleRegulated:          boolean                  // 양도 당시 조정대상지역 여부 (v0.1: false 가정, 보존만)
+  saleRegulated:          boolean,                  // 양도 당시 조정대상지역 여부 (v0.1: false 가정, 보존만)
+
+  // ─── v0.6+ 조특법 특례주택 확장 대비 (의사결정 #10 보강 4) ───
+      // v0.1에서는 모든 필드 미사용. 누락 시 빈 객체·빈 배열로 자동 보정.
+      specialTaxFlags:             SpecialTaxFlags,         // 조특법 특례주택 자기보고 플래그
+      specialTaxRequirementsMet:   string[]                 // 조특법 특례 요건 충족 자기보고 코드 목록
 }
+
+SpecialTaxFlags = {
+      isFarmHouse:                  boolean,    // 농어촌주택 (조특법 §99의4 예상)
+      isHometownHouse:              boolean,    // 고향주택 (조특법 §99의4 예상)
+      isPopulationDeclineAreaHouse: boolean,    // 인구감소지역주택 (조특법 §71의2 예상)
+      isLongTermRental:             boolean     // 장기임대주택 (조특법 §97의3 등 예상)
+      // v0.6+ 확장 시 추가SpecialTaxFlags = {
+      isFarmHouse:                  boolean,    // 농어촌주택 (조특법 §99의4 예상)
+      isHometownHouse:              boolean,    // 고향주택 (조특법 §99의4 예상)
+      isPopulationDeclineAreaHouse: boolean,    // 인구감소지역주택 (조특법 §71의2 예상)
+      isLongTermRental:             boolean     // 장기임대주택 (조특법 §97의3 등 예상)
+      // v0.6+ 확장 시 추가
+}
+
 ```
 
 ### 2-1. v0.1에서 실제 계산에 사용되는 필드
@@ -80,6 +99,8 @@ House = {
 | `residenceMonths` | v0.2 1세대1주택 비과세 거주요건 |
 | `livingNow` | v0.2 거주성 판정 |
 | `nickname`, `location` | 결과 화면 표시 |
+| `specialTaxFlags` | v0.6+ 조특법 특례주택 흡수 (의사결정 #10 보강 4) |
+| `specialTaxRequirementsMet` | v0.6+ 조특법 특례 요건 충족 자기보고 (의사결정 #10 보강 4) |
 
 > **issueFlag 동작**: `acquisitionRegulated === true` 또는 `saleRegulated === true`이면 `OUT_OF_V01_SCOPE_REGULATED_AREA` 발동. 계산은 일반과세로 진행되지만 결과 화면에 경고 카드 표시.
 
@@ -93,6 +114,19 @@ House = {
 | 취득 원인 | 매매취득 | `ACQUISITION_CAUSE_ASSUMED_PURCHASE` (info) |
 | 자산 종류 | 주택 | (가정 기본값) |
 | 명의 | 단독명의 | (가정 기본값) |
+
+### 2-4. v0.6+ 확장 대비 필드 (v0.1 미입력 처리)
+
+    `specialTaxFlags`와 `specialTaxRequirementsMet`은 입력 화면(②.5 카드 또는 ③ 주택별 카드)에 v0.1~v0.5 단계까지는 노출되지 않습니다. v0.1 코드는 다음과 같이 자동 보정합니다.
+
+    | 필드 | v0.1 누락 시 자동 보정값 | v0.6+ 활성 시 처리 |
+    |---|---|---|
+    | `specialTaxFlags` | `{ isFarmHouse: false, isHometownHouse: false, isPopulationDeclineAreaHouse: false, isLongTermRental: false }` | 사용자 자기보고 입력 활성화 (B-014) |
+    | `specialTaxRequirementsMet` | `[]` (빈 배열) | 요건 코드별 체크박스 활성화 (B-014) |
+
+    > **v0.1 검증 동작**: `validateCaseData`는 두 필드의 누락을 에러로 처리하지 않습니다. 누락 시 자동 보정값을 적용하고 issueFlag도 발동하지 않습니다(v0.6+에서 활성될 인터페이스 확장점 사전 노출). v0.1 골든셋(TC-001~005)은 두 필드를 입력하지 않은 상태로 작성되어 있으며, 본 패치 적용 후에도 회귀 테스트는 영향 받지 않습니다.
+
+    > **v0.6+ 활성 시점**: 의사결정 #14~#17(B-014~B-017 처리)에서 본 필드의 활성 정책·후보군 자동 축소 정책·중복적용 배제 처리·한시 특례 만료일 관리가 별도 결정될 예정입니다.
 
 ---
 
@@ -210,3 +244,4 @@ const input = {
 |---|---|---|
 | v0.1.0 | 2026-04-26 | 초기 작성 (계산 엔진 명세서 §2 입력 스키마와 일체) |
 | v0.1.1 | 2026-04-28 | 별도 문서로 분리. 비조정대상지역 가정 + `OUT_OF_V01_SCOPE_REGULATED_AREA` 명시. `02_saleplan_ui_design.md`와의 변수명 정합성 점검 (`expectedSale*` 유지). |
+| v0.1.2 | 2026-04-30 | 의사결정 #10 보강 4건 반영. House에 `specialTaxFlags`·`specialTaxRequirementsMet` 필드 추가(v0.6+ 조특법 특례주택 확장 대비). v0.1 미입력 처리(자동 보정값 적용). 골든셋 영향 없음. |

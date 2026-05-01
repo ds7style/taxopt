@@ -410,7 +410,9 @@
                tc.id + ' metrics.effectiveTaxRate ≈ totalTax/salePrice');
 
     // 메타
-    assertEq(result.ruleVersion,   'v0.1.1-post-20260510', tc.id + ' ruleVersion');
+    // NOTE: tax_rules.js v0.2 패치로 RULE_VERSION 갱신 (작업지시서 03 §3-1 + A-5-2).
+    //       engineVersion은 tax_engine.js v0.1.1 그대로 (v0.2 패치는 작업지시서 04에서).
+    assertEq(result.ruleVersion,   'v0.2.0-post-20260510', tc.id + ' ruleVersion');
     assertEq(result.engineVersion, 'v0.1.1-post-20260510', tc.id + ' engineVersion');
   });
 

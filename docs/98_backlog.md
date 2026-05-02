@@ -493,6 +493,30 @@
 - **처리 시점**: post-MVP (시점 미정)
 - **차단 사항 여부**: 아니오
 
+### B-032. 결과 객체 구조 명세 vs 실제 코드 불일치 정정
+
+- **발견일**: 2026-05-02
+- **출처**: 5/2 GitHub Pages 라이브 검증 진단 단계 (TC-006 진단 스크립트)
+- **내용**:
+  - 모듈 스펙 §4-1 + 작업지시서 04 §9-1: `totalTax`·`netAfterTaxSaleAmount`·`effectiveTaxRate`를 결과 객체 톱레벨 필드로 명시
+  - 실제 코드 (e36cb68): `result.metrics.totalTax`·`result.metrics.netAfterTaxSaleAmount`·`result.metrics.effectiveTaxRate` (metrics 객체로 캡슐화)
+  - 실제 코드는 `result.steps.totalTax` + `result.steps.netAfterTaxSaleAmount`도 노출 (중복)
+  - 톱레벨 필드는 부재
+  - Node.js 회귀 통과 (회귀 테스트가 metrics·steps 사용)
+  - GitHub Pages 라이브 검증 통과 (정정 스크립트로 metrics.totalTax 접근)
+- **처리 방향 옵션**:
+  - (가) 코드 정정 — 톱레벨에 totalTax·netAfterTaxSaleAmount·effectiveTaxRate 노출 추가 (v0.1 호환성 영향 점검 필요)
+  - (나) 모듈 스펙·작업지시서 정정 — metrics 객체 구조로 명세 갱신 (실제 코드 일치, 회귀 영향 없음)
+  - (다) 양립 처리 — 톱레벨 노출 + metrics·steps 중복 유지 (호환성 + 명세 일치)
+- **본 관제탑 분석**:
+  - 옵션 (나)가 가장 부담 작음 (코드 변경 없음)
+  - 옵션 (가)는 회귀 안전성 점검 필요
+  - 옵션 (다)는 향후 v0.3·v0.4 단계에서 결정 가능
+- **연관**: 작업지시서 04 §9, 모듈 스펙 §4
+- **우선순위**: P3 (v0.2 코드 마일스톤 달성 영향 없음, 회귀 통과 + 라이브 검증 통과)
+- **처리 시점**: 5/6 PRD 작성 시점 또는 v0.3 진입 시점
+- **차단 사항 여부**: 아니오
+
 ---
 
 ## 처리 완료 (Closed)

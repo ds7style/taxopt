@@ -70,8 +70,8 @@
   // 그룹 1. 메타데이터·상수
   // ----------------------------------------------------------------
 
-  // v0.2: RULE_VERSION 갱신. 작업지시서 03 §3-1 + A-5-2.
-  assertEq(rules.RULE_VERSION, 'v0.2.0-post-20260510', 'RULE_VERSION');
+  // v0.3-A: RULE_VERSION 갱신. 작업지시서 05 §3-4 + 모듈 스펙 §3-6-1.
+  assertEq(rules.RULE_VERSION, 'v0.3.0-post-20260510', 'RULE_VERSION');
   assertEq(rules.APPLICABLE_SALE_DATE_FROM, '2026-05-10', 'APPLICABLE_SALE_DATE_FROM');
   assertEq(rules.BASIC_DEDUCTION_AMOUNT, 2500000, 'BASIC_DEDUCTION_AMOUNT');
   assertEq(rules.LOCAL_INCOME_TAX_RATE, 0.1, 'LOCAL_INCOME_TAX_RATE');
@@ -414,6 +414,104 @@
   assert(t2r_ok_meta, 'TABLE_2_RESIDENCE: 9행 모두 requiresHoldingMin3y === true');
   assertEq(TABLE_2_RESIDENCE[8].upperBound, Infinity, 'TABLE_2_RESIDENCE: idx=9 upperBound === Infinity');
   assertEq(TABLE_2_RESIDENCE[8].rate, 0.40, 'TABLE_2_RESIDENCE: idx=9 rate === 0.40');
+
+  // ================================================================
+  // v0.3-A 신규 회귀 테스트 (작업지시서 05 §9-2 그룹 A~D)
+  // ================================================================
+
+  var HEAVY = rules.HEAVY_TAX_RATE_ADDITION;
+
+  // ----------------------------------------------------------------
+  // v0.3-A 그룹 A. HEAVY_TAX_RATE_ADDITION 룩업 검증 (§9-2-1)
+  // ----------------------------------------------------------------
+
+  assert(Array.isArray(HEAVY) && HEAVY.length === 2,
+    'HEAVY_TAX_RATE_ADDITION 배열이고 length === 2');
+  assertEq(HEAVY[0].houseCount, 2, 'HEAVY[0].houseCount === 2');
+  assertEq(HEAVY[0].addition,   0.20, 'HEAVY[0].addition === 0.20');
+  assertEq(HEAVY[1].houseCount, 3, 'HEAVY[1].houseCount === 3');
+  assertEq(HEAVY[1].addition,   0.30, 'HEAVY[1].addition === 0.30');
+  assertEq(HEAVY[0].lawRefKey, 'heavyTaxation', 'HEAVY[0].lawRefKey === "heavyTaxation"');
+  assertEq(HEAVY[1].lawRefKey, 'heavyTaxation', 'HEAVY[1].lawRefKey === "heavyTaxation"');
+  assertEq(typeof HEAVY[0].label, 'string', 'HEAVY[0].label string');
+  assertEq(typeof HEAVY[1].label, 'string', 'HEAVY[1].label string');
+  assertEq(typeof rules.LAW_REFS.heavyTaxation, 'string',
+    'LAW_REFS.heavyTaxation 존재 (string)');
+  assert(rules.LAW_REFS.heavyTaxation.length > 0,
+    'LAW_REFS.heavyTaxation 비어있지 않음');
+
+  // ----------------------------------------------------------------
+  // v0.3-A 그룹 B. findHeavyTaxRateAddition 클램프·throw 검증 (§9-2-2)
+  // ----------------------------------------------------------------
+
+  assertEq(typeof rules.findHeavyTaxRateAddition, 'function',
+    'typeof findHeavyTaxRateAddition === "function"');
+
+  // 클램프 (4건)
+  assertEq(rules.findHeavyTaxRateAddition(2),  0.20, 'findHeavyTaxRateAddition(2) === 0.20');
+  assertEq(rules.findHeavyTaxRateAddition(3),  0.30, 'findHeavyTaxRateAddition(3) === 0.30');
+  assertEq(rules.findHeavyTaxRateAddition(4),  0.30, 'findHeavyTaxRateAddition(4) === 0.30 (4주택 클램프)');
+  assertEq(rules.findHeavyTaxRateAddition(10), 0.30, 'findHeavyTaxRateAddition(10) === 0.30 (10주택 클램프)');
+
+  // throw (9건)
+  expectThrow(function () { rules.findHeavyTaxRateAddition(1); },
+    'findHeavyTaxRateAddition(1) throw');
+  expectThrow(function () { rules.findHeavyTaxRateAddition(0); },
+    'findHeavyTaxRateAddition(0) throw');
+  expectThrow(function () { rules.findHeavyTaxRateAddition(-1); },
+    'findHeavyTaxRateAddition(-1) throw');
+  expectThrow(function () { rules.findHeavyTaxRateAddition(2.5); },
+    'findHeavyTaxRateAddition(2.5) throw (비정수)');
+  expectThrow(function () { rules.findHeavyTaxRateAddition(NaN); },
+    'findHeavyTaxRateAddition(NaN) throw');
+  expectThrow(function () { rules.findHeavyTaxRateAddition(Infinity); },
+    'findHeavyTaxRateAddition(Infinity) throw');
+  expectThrow(function () { rules.findHeavyTaxRateAddition('2'); },
+    'findHeavyTaxRateAddition("2") throw (문자열)');
+  expectThrow(function () { rules.findHeavyTaxRateAddition(null); },
+    'findHeavyTaxRateAddition(null) throw');
+  expectThrow(function () { rules.findHeavyTaxRateAddition(undefined); },
+    'findHeavyTaxRateAddition(undefined) throw');
+
+  // ----------------------------------------------------------------
+  // v0.3-A 그룹 C. selfTest 보강 검증 (§9-2-3)
+  // ----------------------------------------------------------------
+
+  var st3 = rules.selfTest();
+  assertEq(st3.ok, true, 'selfTest().ok === true (v0.2 4종 + v0.3-A 1종 = 5종 모두 통과)');
+  assert(typeof st3.heavyTaxAdditionLookups === 'object' && st3.heavyTaxAdditionLookups !== null,
+    'selfTest().heavyTaxAdditionLookups 객체로 정의됨');
+  assertEq(st3.heavyTaxAdditionLookups.ok, true,
+    'selfTest().heavyTaxAdditionLookups.ok === true');
+  assertEq(st3.heavyTaxAdditionLookups.sanityResults.length, 4,
+    'selfTest().heavyTaxAdditionLookups.sanityResults.length === 4');
+  assertEq(st3.heavyTaxAdditionLookups.throwResults.length, 4,
+    'selfTest().heavyTaxAdditionLookups.throwResults.length === 4');
+
+  // ----------------------------------------------------------------
+  // v0.3-A 그룹 D. v0.2 노출 멤버 24종 회귀 (append-only 보장, §9-2-4)
+  // ----------------------------------------------------------------
+
+  // v0.2 24종 멤버 모두 그대로 접근 가능 (선택적 점검)
+  assertEq(typeof rules.findBracket, 'function',         '[D] findBracket 보존');
+  assertEq(typeof rules.findHoldingRate, 'function',     '[D] findHoldingRate 보존');
+  assertEq(typeof rules.findResidenceRate, 'function',   '[D] findResidenceRate 보존');
+  assert(Array.isArray(rules.PROGRESSIVE_BRACKETS) && rules.PROGRESSIVE_BRACKETS.length === 8,
+    '[D] PROGRESSIVE_BRACKETS 보존');
+  assert(Array.isArray(rules.LONG_TERM_DEDUCTION_TABLE_1) && rules.LONG_TERM_DEDUCTION_TABLE_1.length === 13,
+    '[D] LONG_TERM_DEDUCTION_TABLE_1 보존');
+  assert(Array.isArray(rules.LONG_TERM_DEDUCTION_TABLE_2_HOLDING) && rules.LONG_TERM_DEDUCTION_TABLE_2_HOLDING.length === 8,
+    '[D] LONG_TERM_DEDUCTION_TABLE_2_HOLDING 보존');
+  assert(Array.isArray(rules.LONG_TERM_DEDUCTION_TABLE_2_RESIDENCE) && rules.LONG_TERM_DEDUCTION_TABLE_2_RESIDENCE.length === 9,
+    '[D] LONG_TERM_DEDUCTION_TABLE_2_RESIDENCE 보존');
+  assertEq(rules.HIGH_VALUE_HOUSE_THRESHOLD, 1200000000, '[D] HIGH_VALUE_HOUSE_THRESHOLD 보존');
+  assertEq(rules.NON_TAXABLE_HOLDING_MIN_YEARS, 2, '[D] NON_TAXABLE_HOLDING_MIN_YEARS 보존');
+  assertEq(rules.NON_TAXABLE_RESIDENCE_MIN_YEARS, 2, '[D] NON_TAXABLE_RESIDENCE_MIN_YEARS 보존');
+  // v0.2 selfTest 6종 검증 항목 모두 ok === true
+  assertEq(st3.continuity.ok,        true, '[D] selfTest().continuity.ok === true (v0.1)');
+  assertEq(st3.integers.ok,          true, '[D] selfTest().integers.ok === true (v0.1)');
+  assertEq(st3.monotonic.ok,         true, '[D] selfTest().monotonic.ok === true (v0.1)');
+  assertEq(st3.longTermLookups.ok,   true, '[D] selfTest().longTermLookups.ok === true (v0.2)');
 
   // ----------------------------------------------------------------
   // 결과 출력

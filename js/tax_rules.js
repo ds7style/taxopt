@@ -1,11 +1,11 @@
 /**
  * tax_rules.js
  *
- * TaxOpt 계산 엔진 v0.2.0 — 세법 규칙 데이터 모듈
+ * TaxOpt 계산 엔진 v0.3-A — 세법 규칙 데이터 모듈
  *
  * 책임:
  *   1) 양도소득세 계산에 필요한 "규칙 데이터(상수·룩업 테이블)"를 단일 소스로 보유.
- *   2) 룩업 함수(findBracket·findHoldingRate·findResidenceRate) 제공.
+ *   2) 룩업 함수(findBracket·findHoldingRate·findResidenceRate·findHeavyTaxRateAddition) 제공.
  *   3) 데이터 자체의 무결성 자체검증(selfTest).
  *
  * 비책임:
@@ -21,17 +21,18 @@
  *   - 소득세법 시행령 [대통령령 제36129호, 시행 2026-03-01]
  *   - 지방세법 제103조의3
  *
- * 적용 전제 (v0.2.0):
+ * 적용 전제 (v0.3-A):
  *   - 양도일 ≥ 2026-05-10 (중과 유예 종료 후)
  *   - 단독명의, 매매취득, 등기자산
- *   - v0.2 추가: 1세대1주택 비과세·고가주택 안분·장특공 표 1·표 2 룩업 지원
+ *   - v0.2 계승: 1세대1주택 비과세·고가주택 안분·장특공 표 1·표 2 룩업 지원
+ *   - v0.3-A 추가: 다주택 중과 가산세율 룩업 (제104조 ⑦, 시행령 제167조의3·10·11)
  *
  * 참조 문서:
- *   - 모듈 스펙:    docs/v0.2/modules/tax_rules.md v0.2.0 (단일 진본)
- *   - 작업지시서:   docs/05_code_work_orders/03_tax_rules_v0_2.md
- *   - 명세서:       docs/v0.2/01_calc_engine_spec.md v0.2.1
- *   - 골든셋:       docs/v0.2/06_test_cases.md v0.2.1
- *   - 의사결정:     docs/99_decision_log.md (#5 강화, #9 v9, #11)
+ *   - 모듈 스펙:    docs/v0.3/modules/tax_rules.md v0.3-A (단일 진본)
+ *   - 작업지시서:   docs/05_code_work_orders/05_tax_rules_v0_3.md
+ *   - 명세서:       docs/v0.3/01_calc_engine_spec.md v0.3-A
+ *   - 골든셋:       docs/v0.3/06_test_cases.md v0.3-A (TC-011~014 KPI 100%)
+ *   - 의사결정:     docs/99_decision_log.md v13 (#5 강화, #9 v9, #11)
  *
  * §0-1 법령 개정 대응 아키텍처 (의사결정 #5 강화):
  *   (1) 단일 소스         — 법령 명시 숫자는 본 모듈 한 곳에만 둔다.
@@ -52,7 +53,7 @@
   // ==================================================================
 
   /** 규칙 버전 식별자. taxResult.ruleVersion에 그대로 기록한다. */
-  var RULE_VERSION = 'v0.2.0-post-20260510';
+  var RULE_VERSION = 'v0.3.0-post-20260510';
 
   /**
    * 본 규칙이 적용되는 양도일 하한 (포함, ISO date string).
@@ -60,7 +61,7 @@
    */
   var APPLICABLE_SALE_DATE_FROM = '2026-05-10';
 
-  /** 적용 법령 라벨 (UI·로그용). v0.1 6키 + v0.2 신규 4키 = 10종. */
+  /** 적용 법령 라벨 (UI·로그용). v0.1 6키 + v0.2 신규 4키 + v0.3-A 신규 1키 = 11종. */
   var LAW_REFS = {
     incomeTaxAct:           '소득세법 [법률 제21065호, 2026-01-02 시행]',
     incomeTaxEnforcement:   '소득세법 시행령 [대통령령 제36129호, 2026-03-01 시행]',
@@ -72,7 +73,9 @@
     nonTaxation1Se1House:   '소득세법 제89조 제1항 제3호, 시행령 제154조',
     highValueHouse:         '소득세법 제95조 제3항, 시행령 제160조 제1항',
     longTermDeductionTable1:'소득세법 제95조 제2항 표 1, 시행령 제159조의3',
-    longTermDeductionTable2:'소득세법 제95조 제2항 표 2, 시행령 제159조의4'
+    longTermDeductionTable2:'소득세법 제95조 제2항 표 2, 시행령 제159조의4',
+    // v0.3-A 신규 (모듈 스펙 §3-A)
+    heavyTaxation:          '소득세법 제104조 제7항, 시행령 제167조의3·제167조의10·제167조의11'
   };
 
   // ==================================================================
@@ -279,6 +282,31 @@
   ];
 
   // ==================================================================
+  // 8-A. 다주택 중과 가산세율 룩업 (v0.3-A 신규)
+  //      근거: 소득세법 제104조 ⑦ + 시행령 제167조의3 ① + 시행령 제167조의10 ①.
+  //      §0-1 원칙 (1) 단일 소스 — 가산세율(+20%p, +30%p)은 본 모듈만 보유.
+  //      §0-1 원칙 (2) 룩업 우선 — 등차수열 산식 금지, 2행 룩업으로 정의.
+  //      3주택 이상은 룩업 함수(`findHeavyTaxRateAddition`)가 클램프 처리.
+  // ==================================================================
+
+  var HEAVY_TAX_RATE_ADDITION = [
+    {
+      idx: 1,
+      houseCount: 2,
+      addition: 0.20,
+      label: '1세대 2주택 중과 +20%p',
+      lawRefKey: 'heavyTaxation'
+    },
+    {
+      idx: 2,
+      houseCount: 3,
+      addition: 0.30,
+      label: '1세대 3주택 이상 중과 +30%p',
+      lawRefKey: 'heavyTaxation'
+    }
+  ];
+
+  // ==================================================================
   // 9. 헬퍼: findBracket(taxBase) — v0.1 계승
   // ==================================================================
 
@@ -389,7 +417,35 @@
   }
 
   // ==================================================================
-  // 12. 자체검증 (명세서 §4-3 + 정수 보장 + 단조성 + v0.2 룩업 sanity)
+  // 11-A. 헬퍼: findHeavyTaxRateAddition(houseCount) — v0.3-A 신규
+  //       2행 룩업 + 3주택 이상 클램프(0.30) 처리.
+  //       모듈 스펙 v0.3-A §4-A 정본 — 입력 검증 throw 정책 명시.
+  // ==================================================================
+
+  function findHeavyTaxRateAddition(houseCount) {
+    if (typeof houseCount !== 'number' ||
+        !Number.isFinite(houseCount) ||
+        !Number.isInteger(houseCount) ||
+        houseCount < 2) {
+      throw new Error(
+        'findHeavyTaxRateAddition: houseCount must be integer >= 2. got=' + houseCount
+      );
+    }
+    // 클램프: 3주택 이상은 모두 +30%p (idx=2 행)
+    var key = houseCount >= 3 ? 3 : 2;
+    for (var i = 0; i < HEAVY_TAX_RATE_ADDITION.length; i++) {
+      if (HEAVY_TAX_RATE_ADDITION[i].houseCount === key) {
+        return HEAVY_TAX_RATE_ADDITION[i].addition;
+      }
+    }
+    // 룩업 테이블 정의 자체가 깨졌을 때만 도달.
+    throw new Error(
+      'findHeavyTaxRateAddition: unreachable (lookup table missing key: ' + key + ')'
+    );
+  }
+
+  // ==================================================================
+  // 12. 자체검증 (명세서 §4-3 + 정수 보장 + 단조성 + v0.2 룩업 sanity + v0.3-A 중과 sanity)
   // ==================================================================
 
   /**
@@ -540,26 +596,93 @@
   }
 
   /**
+   * 다주택 중과 가산세율 룩업 sanity 검증 (v0.3-A 신규).
+   *
+   * sanity 통합 8건 (모듈 스펙 §4-A-4·§9-A 정본):
+   *   - sanity 4건: findHeavyTaxRateAddition(2/3/4/10) 클램프 검증
+   *   - throw 4건: findHeavyTaxRateAddition(1/2.5/NaN/"2") 입력 검증 throw 검증
+   *
+   * 모든 8건이 기대대로 동작해야 ok === true.
+   *
+   * @returns {{ ok: boolean, sanityResults: Array, throwResults: Array }}
+   */
+  function verifyHeavyTaxRateAddition() {
+    var sanityCases = [
+      { input: 2,  expected: 0.20 },
+      { input: 3,  expected: 0.30 },
+      { input: 4,  expected: 0.30 },
+      { input: 10, expected: 0.30 }
+    ];
+    var throwCases = [
+      { input: 1   },
+      { input: 2.5 },
+      { input: NaN },
+      { input: '2' }
+    ];
+
+    var sanityResults = [];
+    var throwResults = [];
+    var allOk = true;
+
+    sanityCases.forEach(function (c) {
+      var actual = null, threw = false, errMsg = null;
+      try { actual = findHeavyTaxRateAddition(c.input); }
+      catch (e) { threw = true; errMsg = e.message; }
+      var ok = !threw && actual === c.expected;
+      sanityResults.push({
+        input: c.input,
+        expected: c.expected,
+        actual: actual,
+        threw: threw,
+        ok: ok
+      });
+      if (!ok) allOk = false;
+    });
+
+    throwCases.forEach(function (c) {
+      var threw = false;
+      try { findHeavyTaxRateAddition(c.input); }
+      catch (e) { threw = true; }
+      var ok = threw === true;
+      throwResults.push({ input: c.input, threw: threw, ok: ok });
+      if (!ok) allOk = false;
+    });
+
+    return {
+      ok: allOk,
+      sanityResults: sanityResults,
+      throwResults: throwResults
+    };
+  }
+
+  /**
    * 종합 자체검증.
    *
    * 페이지 로드 시 1회 호출 권장. ok === false이면 콘솔 경고 + 결과 화면 차단을
    * tax_engine 또는 부트스트랩 측에서 수행한다 (이 모듈은 throw하지 않음).
    *
    * v0.2 추가: longTermLookups 필드 (장특공 룩업 15건 sanity).
+   * v0.3-A 추가: heavyTaxAdditionLookups 필드 (중과 가산세율 8건 sanity).
    *
-   * @returns {{ ok: boolean, continuity: object, integers: object, monotonic: object, longTermLookups: object }}
+   * @returns {{
+   *   ok: boolean,
+   *   continuity: object, integers: object, monotonic: object,
+   *   longTermLookups: object, heavyTaxAdditionLookups: object
+   * }}
    */
   function selfTest() {
-    var cont = verifyProgressiveContinuity();
-    var ints = verifyBaseTaxAreIntegers();
-    var mono = verifyMonotonic();
-    var lt   = verifyLongTermLookups();
+    var cont  = verifyProgressiveContinuity();
+    var ints  = verifyBaseTaxAreIntegers();
+    var mono  = verifyMonotonic();
+    var lt    = verifyLongTermLookups();
+    var heavy = verifyHeavyTaxRateAddition();
     return {
-      ok: cont.ok && ints.ok && mono.ok && lt.ok,
+      ok: cont.ok && ints.ok && mono.ok && lt.ok && heavy.ok,
       continuity: cont,
       integers: ints,
       monotonic: mono,
-      longTermLookups: lt
+      longTermLookups: lt,
+      heavyTaxAdditionLookups: heavy
     };
   }
 
@@ -584,21 +707,24 @@
     NON_TAXABLE_RESIDENCE_MIN_YEARS: NON_TAXABLE_RESIDENCE_MIN_YEARS,
     // 임계 배열 (1종)
     HOLDING_PERIOD_BOUNDARY_YEARS: HOLDING_PERIOD_BOUNDARY_YEARS,
-    // 룩업 테이블 (4종)
+    // 룩업 테이블 (5종 — v0.2 4종 + v0.3-A 신규 1종 HEAVY_TAX_RATE_ADDITION)
     PROGRESSIVE_BRACKETS: PROGRESSIVE_BRACKETS,
     LONG_TERM_DEDUCTION_TABLE_1: LONG_TERM_DEDUCTION_TABLE_1,
     LONG_TERM_DEDUCTION_TABLE_2_HOLDING: LONG_TERM_DEDUCTION_TABLE_2_HOLDING,
     LONG_TERM_DEDUCTION_TABLE_2_RESIDENCE: LONG_TERM_DEDUCTION_TABLE_2_RESIDENCE,
-    // 헬퍼 (3종)
+    HEAVY_TAX_RATE_ADDITION: HEAVY_TAX_RATE_ADDITION,
+    // 헬퍼 (4종 — v0.2 3종 + v0.3-A 신규 1종 findHeavyTaxRateAddition)
     findBracket: findBracket,
     findHoldingRate: findHoldingRate,
     findResidenceRate: findResidenceRate,
-    // 자체검증 (5종)
+    findHeavyTaxRateAddition: findHeavyTaxRateAddition,
+    // 자체검증 (5종 노출 + 1종 내부 분화: verifyHeavyTaxRateAddition)
     selfTest: selfTest,
     verifyProgressiveContinuity: verifyProgressiveContinuity,
     verifyBaseTaxAreIntegers: verifyBaseTaxAreIntegers,
     verifyMonotonic: verifyMonotonic,
-    verifyLongTermLookups: verifyLongTermLookups
+    verifyLongTermLookups: verifyLongTermLookups,
+    verifyHeavyTaxRateAddition: verifyHeavyTaxRateAddition
   };
 
 })(typeof window !== 'undefined'

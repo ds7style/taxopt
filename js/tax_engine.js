@@ -1,7 +1,7 @@
 /**
  * tax_engine.js
  *
- * TaxOpt 계산 엔진 v0.2.0 — 13단계 양도소득세 계산 파이프라인
+ * TaxOpt 계산 엔진 v0.3-A — 13단계 양도소득세 계산 파이프라인
  *
  * 책임:
  *   1) caseData 입력을 받아 0~13단계 + B-008 보강 + issueFlag 수집을 수행한다.
@@ -18,14 +18,14 @@
  *   window.TaxOpt.taxEngine
  *
  * 의존:
- *   window.TaxOpt.taxRules (tax_rules.js v0.2.0, 선행 로드 필수)
+ *   window.TaxOpt.taxRules (tax_rules.js v0.3-A, 선행 로드 필수)
  *
  * 참조 문서:
- *   - 모듈 스펙:    docs/v0.2/modules/tax_engine.md v0.2.1 (단일 진본)
- *   - 명세서:       docs/v0.2/01_calc_engine_spec.md v0.2.1 (산식 정본)
- *   - 작업지시서:   docs/05_code_work_orders/04_tax_engine_v0_2.md v0.2.0
- *   - 골든셋:       docs/v0.2/06_test_cases.md v0.2.1 (TC-006~010, KPI 100%)
- *   - 의사결정:     docs/99_decision_log.md (#5 강화, #9 v9, #11)
+ *   - 모듈 스펙:    docs/v0.3/modules/tax_engine.md v0.3-A (단일 진본)
+ *   - 명세서:       docs/v0.3/01_calc_engine_spec.md v0.3-A (산식 정본)
+ *   - 작업지시서:   docs/05_code_work_orders/06_tax_engine_v0_3.md
+ *   - 골든셋:       docs/v0.3/06_test_cases.md v0.3-A (TC-011~014 KPI 100%)
+ *   - 의사결정:     docs/99_decision_log.md v13 (#5 강화, #9 v9, #11)
  *
  * v0.1.1 → v0.2.0 변경 요약:
  *   - 단계 0 (validateCaseData): v0.2 신규 검증 5종 + 자동 보정 7종 (B-019)
@@ -53,7 +53,7 @@
   // 0. 메타데이터
   // ==================================================================
 
-  var ENGINE_VERSION = 'v0.2.0-post-20260510';
+  var ENGINE_VERSION = 'v0.3.0-A';
 
   // tax_rules 의존을 호출 시점에 해소하기 위한 헬퍼 (모듈 스펙 §8-2 부트스트랩 가드)
   function getRules() {
@@ -80,6 +80,17 @@
         !Array.isArray(rs.LONG_TERM_DEDUCTION_TABLE_2_HOLDING) ||
         !Array.isArray(rs.LONG_TERM_DEDUCTION_TABLE_2_RESIDENCE)) {
       throw new Error('tax_engine v0.2: tax_rules v0.2 장특공 테이블 미로드.');
+    }
+  }
+
+  // v0.3-A 부트스트랩 가드 2-A — 다주택 중과 가산세율 룩업 미로드 차단 (모듈 스펙 §8-2-2)
+  // tax_rules.js가 v0.2 상태로 남고 tax_engine.js만 v0.3-A로 갱신된 경우의 silent failure를
+  // 부트스트랩 시점에 명시적으로 표면화한다.
+  function ensureV03ARules(rs) {
+    if (typeof rs.HEAVY_TAX_RATE_ADDITION === 'undefined' ||
+        !Array.isArray(rs.HEAVY_TAX_RATE_ADDITION) ||
+        typeof rs.findHeavyTaxRateAddition !== 'function') {
+      throw new Error('tax_engine v0.3-A: tax_rules v0.3-A (다주택 중과 가산세율 룩업) 미로드.');
     }
   }
 
@@ -677,7 +688,77 @@
   }
 
   // ==================================================================
-  // 6. issueFlag 수집 (v0.2: 18종 + 자동 보정 2종, 명세서 §6 + 작업지시서 §5)
+  // 5-A. v0.3-A 신규 — 다주택 중과 평가 + 중과 누진세율 동적 재계산
+  //      모듈 스펙 v0.3-A §5-5·§5-4-3 정본.
+  //      §0-1 원칙 (1)·(2)·(3) 준수: 가산세율 숫자 리터럴 보유 금지, 룩업·산식 흐름만.
+  // ==================================================================
+
+  // 5-A-1. 다주택 중과 4조건 평가 함수 (모듈 스펙 §5-5)
+  // 입력:  caseData (households·houses[0]·salePlan), intermediates ({ is1Se1House })
+  // 출력:  boolean — 4조건 모두 true이면 true, 하나라도 false이면 false
+  // 부수효과 없음, 결정성 보장 (동일 입력 → 동일 출력).
+  //
+  // condition3 (saleDate ≥ APPLICABLE_SALE_DATE_FROM)의 saleDate 출처:
+  //   1순위: caseData.salePlan.saleDate (v0.3-A 명세서 정본)
+  //   2순위: caseData.houses[0].expectedSaleDate (v0.2 코드 정본 폴백)
+  // 두 출처 모두 누락 시 condition3 = false (방어적 — 중과 미발동).
+  function isHeavyTaxationApplicable(caseData, intermediates) {
+    var rs = getRules();
+    if (!caseData || typeof caseData !== 'object') return false;
+    if (!Array.isArray(caseData.houses) || caseData.houses.length === 0) return false;
+    if (!intermediates || typeof intermediates !== 'object') return false;
+
+    var house0 = caseData.houses[0];
+
+    // condition1: 다주택 (1세대 보유 주택 수 ≥ 2)
+    var c1 = (typeof caseData.householdHouseCount === 'number' &&
+              caseData.householdHouseCount >= 2);
+
+    // condition2: 양도시 조정대상지역
+    var c2 = (house0.saleRegulated === true);
+
+    // condition3: 시행일 후속 (saleDate ≥ APPLICABLE_SALE_DATE_FROM)
+    var saleDate = null;
+    if (caseData.salePlan && typeof caseData.salePlan.saleDate === 'string') {
+      saleDate = caseData.salePlan.saleDate;
+    } else if (typeof house0.expectedSaleDate === 'string') {
+      saleDate = house0.expectedSaleDate;
+    }
+    var c3 = (saleDate !== null && saleDate >= rs.APPLICABLE_SALE_DATE_FROM);
+
+    // condition4: 비과세 미적용
+    var c4 = (intermediates.is1Se1House === false);
+
+    return c1 && c2 && c3 && c4;
+  }
+
+  // 5-A-2. 중과 누진세율 동적 재계산 (모듈 스펙 §5-4-3, 명세서 §3-4-3)
+  // 입력:  taxBase, addition (0.20 또는 0.30), rs (rules ref)
+  // 출력:  number — 절사된 산출세액 (Math.floor 1회 적용)
+  // 산식 (단일 소스 원칙):
+  //   1. bracket = findBracket(taxBase)
+  //   2. 누적 baseTax_with_addition: PROGRESSIVE_BRACKETS 순회하며
+  //      bracket.lowerBound 이전 구간의 (구간폭) × (구간세율 + addition) 합
+  //   3. 산출세액 = baseTax_with_addition + (taxBase − bracket.lowerBound) × (bracket.marginalRate + addition)
+  //   4. Math.floor 1회 적용
+  function computeHeavyProgressiveTax(taxBase, addition, rs) {
+    var bracket = rs.findBracket(taxBase);
+    var brackets = rs.PROGRESSIVE_BRACKETS;
+    var baseTaxWithAddition = 0;
+    for (var i = 0; i < brackets.length; i++) {
+      var seg = brackets[i];
+      // bracket.lowerBound 이전에 위치한 구간만 누적
+      if (seg.upperBound <= bracket.lowerBound) {
+        baseTaxWithAddition += (seg.upperBound - seg.lowerBound) * (seg.marginalRate + addition);
+      }
+    }
+    return Math.floor(
+      baseTaxWithAddition + (taxBase - bracket.lowerBound) * (bracket.marginalRate + addition)
+    );
+  }
+
+  // ==================================================================
+  // 6. issueFlag 수집 (v0.3-A: 활성 25종 = v0.2 18 + 신규 5 + 보조 3 − 폐기 1, 명세서 §6 + 작업지시서 §4-6)
   // ==================================================================
 
   function collectIssueFlags(caseData, intermediates) {
@@ -704,6 +785,13 @@
     var lawRefs = rs.LAW_REFS || {};
     var householdHouseCount = (caseData && Number.isInteger(caseData.householdHouseCount))
                                 ? caseData.householdHouseCount : null;
+
+    // v0.3-A 신규 intermediates (단계 4·9에서 채움)
+    var isHeavyTaxation     = (intermediates && intermediates.isHeavyTaxation === true);
+    var heavyRateAddition   = (intermediates && typeof intermediates.heavyRateAddition === 'number')
+                                ? intermediates.heavyRateAddition : null;
+    var holdingPeriodBranch = (intermediates && typeof intermediates.holdingPeriodBranch === 'string')
+                                ? intermediates.holdingPeriodBranch : null;
 
     // ─── (1) v0.2 신규 5종 + 보조 3종 ─────────────────────────────
 
@@ -808,15 +896,9 @@
       });
     }
 
-    // OUT_OF_V01_SCOPE_REGULATED_AREA — v0.2 발동조건 축소: saleRegulated만
-    if (input.saleRegulated === true) {
-      flags.push({
-        code: 'OUT_OF_V01_SCOPE_REGULATED_AREA',
-        severity: 'warning',
-        message: '양도 시점에 조정대상지역이 포함되어 있습니다. v0.2 일반과세로 진행. v0.3 중과 적용 후 정확한 세액 산출 예정.',
-        lawRef: '소득세법 제104조 ⑦'
-      });
-    }
+    // OUT_OF_V01_SCOPE_REGULATED_AREA — v0.3-A 폐기 (작업지시서 06 §4-6-4):
+    //   v0.3-A에서 saleRegulated 활성 입력 전환으로 "v0.1 범위 외" 의미 소멸.
+    //   대체: SALE_REGULATED_USER_INPUT (info, 항상 발동, §4-6-3).
 
     // OUT_OF_V01_SCOPE_DATE — 그대로
     if (isValidISODate(saleDate) && saleDate < rs.APPLICABLE_SALE_DATE_FROM) {
@@ -883,7 +965,91 @@
       });
     }
 
-    // ─── (4) 자동 보정 issueFlag (B-019) ─────────────────────────
+    // ─── (4) v0.3-A 신규 5종 (중과 핵심, 작업지시서 06 §4-6-2) ───
+
+    // HEAVY_TAXATION_APPLIED — 중과 발동 (severity: warning)
+    if (isHeavyTaxation) {
+      var pct = (heavyRateAddition !== null) ? Math.round(heavyRateAddition * 100) : null;
+      flags.push({
+        code: 'HEAVY_TAXATION_APPLIED',
+        severity: 'warning',
+        message: '다주택 중과가 적용되었습니다 (가산세율 +' + pct + '%p). ' +
+                 '장기보유특별공제는 배제되며 누진세율 + 가산세율이 적용됩니다.',
+        lawRef: lawRefs.heavyTaxation || '소득세법 제104조 ⑦'
+      });
+    }
+
+    // HEAVY_TAXATION_2_HOUSES — 중과 + 2주택 (severity: info)
+    if (isHeavyTaxation && householdHouseCount === 2) {
+      flags.push({
+        code: 'HEAVY_TAXATION_2_HOUSES',
+        severity: 'info',
+        message: '1세대 2주택 중과 +20%p 적용.',
+        lawRef: lawRefs.heavyTaxation || '소득세법 제104조 ⑦'
+      });
+    }
+
+    // HEAVY_TAXATION_3_HOUSES — 중과 + 3주택 이상 (severity: info)
+    if (isHeavyTaxation && Number.isInteger(householdHouseCount) && householdHouseCount >= 3) {
+      flags.push({
+        code: 'HEAVY_TAXATION_3_HOUSES',
+        severity: 'info',
+        message: '1세대 3주택 이상 중과 +30%p 적용 (3주택 이상 클램프).',
+        lawRef: lawRefs.heavyTaxation || '소득세법 제104조 ⑦'
+      });
+    }
+
+    // LONG_TERM_DEDUCTION_EXCLUDED_BY_MULTI_HOUSE_HEAVY — 중과 + 보유 ≥ 3년 (severity: info)
+    if (isHeavyTaxation && Number.isInteger(holdingYears) && holdingYears >= 3) {
+      flags.push({
+        code: 'LONG_TERM_DEDUCTION_EXCLUDED_BY_MULTI_HOUSE_HEAVY',
+        severity: 'info',
+        message: '다주택 중과로 장기보유특별공제 배제 (보유 ' + holdingYears + '년).',
+        lawRef: '소득세법 제95조 ② 단서, 제104조 ⑦'
+      });
+    }
+
+    // HEAVY_TAX_SHORT_TERM_COMPARISON — 중과 + 보유 < 2년 (severity: info)
+    if (isHeavyTaxation && holdingPeriodBranch !== null && holdingPeriodBranch !== 'over2y') {
+      flags.push({
+        code: 'HEAVY_TAX_SHORT_TERM_COMPARISON',
+        severity: 'info',
+        message: '단기세율과 중과 누진세율 산출세액 max 비교 후 적용 (보유 < 2년 + 다주택 중과).',
+        lawRef: '소득세법 제104조 ⑦ 본문 단서'
+      });
+    }
+
+    // ─── (5) v0.3-A 보조 3종 (작업지시서 06 §4-6-3) ──────────────
+
+    // SALE_REGULATED_USER_INPUT — 항상 (info, 사용자 직접 입력 책임 명시)
+    flags.push({
+      code: 'SALE_REGULATED_USER_INPUT',
+      severity: 'info',
+      message: '양도시 조정대상지역 여부는 사용자 입력값을 그대로 사용합니다 (자동 판정 미적용, post-MVP 인계).',
+      lawRef: lawRefs.heavyTaxation || '소득세법 제104조 ⑦'
+    });
+
+    // HEAVY_TAX_EXCLUSION_NOT_HANDLED — 중과 발동 시 (info)
+    if (isHeavyTaxation) {
+      flags.push({
+        code: 'HEAVY_TAX_EXCLUSION_NOT_HANDLED',
+        severity: 'info',
+        message: '시행령 제167조의10·11 중과 배제 단서는 v0.3-A에서 미처리. 전문가 검토 권고.',
+        lawRef: '시행령 제167조의10, 제167조의11'
+      });
+    }
+
+    // HEAVY_TAX_TRANSITION_NOT_HANDLED — 중과 발동 시 (info, 단일 임계만 처리)
+    if (isHeavyTaxation) {
+      flags.push({
+        code: 'HEAVY_TAX_TRANSITION_NOT_HANDLED',
+        severity: 'info',
+        message: '추가 경과조치는 v0.3-A에서 미처리 (단일 시행일 임계만 적용). post-MVP 인계.',
+        lawRef: '소득세법 부칙'
+      });
+    }
+
+    // ─── (6) 자동 보정 issueFlag (B-019) ─────────────────────────
 
     if (autoCorrections.indexOf('HOUSEHOLD_COUNT_INFERRED') >= 0) {
       flags.push({
@@ -912,6 +1078,7 @@
   function calculateSingleTransfer(caseData, houseId) {
     var rs = getRules();
     ensureV02Rules(rs);
+    ensureV03ARules(rs);
 
     var validation = validateCaseData(caseData);
     if (!validation.ok) {
@@ -967,10 +1134,32 @@
       allocationRatio = 1.0;
     }
 
-    // 단계 4 — 장특공 (terminateAt2 시 0/null + 양도차손 시 0)
-    // taxableGain<0이면 의미 없는 음수 공제를 회피하여 0 처리 (v0.1 호환).
+    // v0.3-A 신규 — 중과 평가 (단계 4 진입 직전, 모듈 스펙 §5-5)
+    // condition4 = !is1Se1House이므로 terminateAt2 시 자동 false (1세대1주택 비과세 발동).
+    // taxableGain<0(양도차손) 시에도 산출세액 0이 되므로 중과 의미 없음 → 평가 생략 가능하나
+    // 명세서 §3-1 4조건 평가 자체는 결정성 보장을 위해 항상 실행한다.
+    var isHeavyTaxation = isHeavyTaxationApplicable(corrected, { is1Se1House: is1Se1House });
+    var heavyRateAddition = null;
+    if (isHeavyTaxation) {
+      // 4조건 모두 true이고 condition1에서 householdHouseCount>=2 보장됨.
+      heavyRateAddition = rs.findHeavyTaxRateAddition(corrected.householdHouseCount);
+    }
+
+    // 단계 4 — 장특공 (terminateAt2 시 0/null + 양도차손 시 0 + 중과 시 0)
+    // - terminateAt2 또는 taxableGain<0: v0.2 그대로 (0 처리)
+    // - 중과 발동: longTermDeduction=0, appliedDeductionTable=null (작업지시서 06 §4-3)
+    // - 그 외: v0.2 calculateLongTermDeduction 호출 그대로
     var ltdResult;
     if (terminateAt2 || taxableGain < 0) {
+      ltdResult = {
+        longTermDeduction: 0,
+        appliedDeductionTable: null,
+        holdingRate: 0,
+        residenceRate: 0,
+        totalRate: 0
+      };
+    } else if (isHeavyTaxation) {
+      // v0.3-A 중과 분기 — 장특공 강제 0 (소득세법 제95조 ② 단서)
       ltdResult = {
         longTermDeduction: 0,
         appliedDeductionTable: null,
@@ -990,9 +1179,12 @@
     var longTermDeduction = ltdResult.longTermDeduction;
 
     // 단계 5~13 (terminateAt2 시 후속 단계 0/null 정책, 모듈 스펙 §4-2-1)
+    // v0.3-A 신규: shortTermTax·heavyProgressiveTax (보유<2년+중과 max 비교 트레이스)
     var capitalGainIncome, basicDeduction, taxBase;
     var holdingPeriodBranch, appliedRateInternal;
     var calculatedTax, localIncomeTax, totalTax, netAfterTaxSaleAmount;
+    var shortTermTax = null;
+    var heavyProgressiveTax = null;
 
     if (terminateAt2) {
       capitalGainIncome   = 0;
@@ -1009,15 +1201,76 @@
       basicDeduction        = computeBasicDeduction(input.basicDeductionUsed);
       taxBase               = computeTaxBase(capitalGainIncome, basicDeduction);
       holdingPeriodBranch   = determineHoldingPeriodBranch(input.acquisitionDate, input.saleDate);
-      appliedRateInternal   = determineAppliedRate(holdingPeriodBranch, taxBase);
-      calculatedTax         = computeCalculatedTax(taxBase, appliedRateInternal);
+
+      if (isHeavyTaxation && holdingPeriodBranch === 'over2y') {
+        // 단계 9-A-1: 중과 + 보유≥2년 → 누진세율 + 가산세율 동적 재계산 (작업지시서 06 §4-4-3)
+        var hBracket1 = rs.findBracket(taxBase);
+        calculatedTax = computeHeavyProgressiveTax(taxBase, heavyRateAddition, rs);
+        appliedRateInternal = {
+          type:         'progressive_with_heavy',
+          bracket:      hBracket1.idx,
+          label:        hBracket1.label + ' + 중과 +' + Math.round(heavyRateAddition * 100) + '%p',
+          marginalRate: hBracket1.marginalRate + heavyRateAddition,
+          baseTax:      hBracket1.baseTax,
+          lowerBound:   hBracket1.lowerBound,
+          addition:     heavyRateAddition
+        };
+        // shortTermTax·heavyProgressiveTax는 max 비교 미발생 → null
+      } else if (isHeavyTaxation &&
+                 (holdingPeriodBranch === 'under1y' || holdingPeriodBranch === 'under2y')) {
+        // 단계 9-A-2: 중과 + 보유<2년 → max(단기세율 산출, 중과 누진 산출) 비교
+        // (작업지시서 06 §4-4-4, 소득세법 제104조 ⑦ 본문 단서)
+        var SHORT_TERM_RATE = (holdingPeriodBranch === 'under1y')
+                                ? rs.SHORT_TERM_RATE_UNDER_1Y
+                                : rs.SHORT_TERM_RATE_UNDER_2Y;
+        var stt = Math.floor(taxBase * SHORT_TERM_RATE);
+        var hpt = computeHeavyProgressiveTax(taxBase, heavyRateAddition, rs);
+        var hBracket2 = rs.findBracket(taxBase);
+        // 동률은 단기세율 우세 처리 (작업지시서 06 §14-5-3)
+        if (stt >= hpt) {
+          appliedRateInternal = {
+            type:          'short_term_60or70_vs_heavy',
+            bracket:       null,
+            label:         '단기세율 ' + Math.round(SHORT_TERM_RATE * 100) +
+                           '% vs 중과 누진 비교 — 단기 우세',
+            marginalRate:  SHORT_TERM_RATE,
+            baseTax:       0,
+            lowerBound:    0,
+            addition:      heavyRateAddition,
+            comparedHeavy: true,
+            chosen:        'short_term'
+          };
+          calculatedTax = stt;
+        } else {
+          appliedRateInternal = {
+            type:          'short_term_60or70_vs_heavy',
+            bracket:       hBracket2.idx,
+            label:         '단기세율 ' + Math.round(SHORT_TERM_RATE * 100) +
+                           '% vs 중과 누진 비교 — 중과 누진 우세 (' + hBracket2.label + ')',
+            marginalRate:  hBracket2.marginalRate + heavyRateAddition,
+            baseTax:       hBracket2.baseTax,
+            lowerBound:    hBracket2.lowerBound,
+            addition:      heavyRateAddition,
+            comparedHeavy: true,
+            chosen:        'heavy_progressive'
+          };
+          calculatedTax = hpt;
+        }
+        shortTermTax = stt;
+        heavyProgressiveTax = hpt;
+      } else {
+        // 중과 미발동 → v0.2 그대로
+        appliedRateInternal = determineAppliedRate(holdingPeriodBranch, taxBase);
+        calculatedTax       = computeCalculatedTax(taxBase, appliedRateInternal);
+      }
+
       localIncomeTax        = computeLocalIncomeTax(calculatedTax);
       totalTax              = computeTotalTax(calculatedTax, localIncomeTax);
       netAfterTaxSaleAmount = computeNetAfterTaxSaleAmount(input.salePrice, totalTax);
     }
     var effectiveTaxRate = computeEffectiveTaxRate(totalTax, input.salePrice);
 
-    // issueFlag 수집
+    // issueFlag 수집 (v0.3-A intermediates 보강)
     var issueFlags = collectIssueFlags(corrected, {
       input: input,
       transferGain: transferGain,
@@ -1029,10 +1282,14 @@
       appliedDeductionTable: ltdResult.appliedDeductionTable,
       holdingYears: holdingYears,
       residenceYears: residenceYears,
-      autoCorrections: validation.autoCorrections
+      autoCorrections: validation.autoCorrections,
+      // v0.3-A 신규
+      isHeavyTaxation: isHeavyTaxation,
+      heavyRateAddition: heavyRateAddition
     });
 
     // 출력 appliedRate (terminateAt2 시 null, 모듈 스펙 §4-2-1)
+    // v0.3-A 확장: addition·comparedHeavy·chosen 필드 (heavy 케이스에서만 채움)
     var appliedRateOut = null;
     if (appliedRateInternal !== null) {
       appliedRateOut = {
@@ -1042,6 +1299,13 @@
         marginalRate: appliedRateInternal.marginalRate,
         baseTax:      appliedRateInternal.baseTax
       };
+      if (typeof appliedRateInternal.addition === 'number') {
+        appliedRateOut.addition = appliedRateInternal.addition;
+      }
+      if (appliedRateInternal.comparedHeavy === true) {
+        appliedRateOut.comparedHeavy = true;
+        appliedRateOut.chosen = appliedRateInternal.chosen;
+      }
     }
 
     return {
@@ -1095,7 +1359,14 @@
         holdingRate:           ltdResult.holdingRate,
         residenceRate:         ltdResult.residenceRate,
         totalRate:             ltdResult.totalRate,
-        terminateAt2:          terminateAt2
+        terminateAt2:          terminateAt2,
+        // v0.3-A 신규 4개 필드 (작업지시서 06 §4-5-2)
+        // terminateAt2 시: isHeavyTaxation=false / heavyRateAddition=null /
+        //                  shortTermTax=null / heavyProgressiveTax=null (§4-5-3 정책)
+        isHeavyTaxation:       isHeavyTaxation,
+        heavyRateAddition:     heavyRateAddition,
+        shortTermTax:          shortTermTax,
+        heavyProgressiveTax:   heavyProgressiveTax
       },
 
       // B-008 보강 — 시나리오 비교 지표 사전 노출
@@ -1109,7 +1380,7 @@
       warnings:        validation.warnings,
       autoCorrections: validation.autoCorrections,
 
-      // v0.1 array 형식 유지 + v0.2 신규 4건 추가
+      // v0.1 array 형식 유지 + v0.2 신규 4건 + v0.3-A 신규 1건
       lawRefs: [
         rs.LAW_REFS.progressiveRate,
         rs.LAW_REFS.transferTaxRate,
@@ -1118,7 +1389,8 @@
         rs.LAW_REFS.nonTaxation1Se1House,
         rs.LAW_REFS.highValueHouse,
         rs.LAW_REFS.longTermDeductionTable1,
-        rs.LAW_REFS.longTermDeductionTable2
+        rs.LAW_REFS.longTermDeductionTable2,
+        rs.LAW_REFS.heavyTaxation
       ]
     };
   }
@@ -1147,7 +1419,7 @@
         livingNow:            fields.livingNow === true,
         expectedSaleDate:     fields.expectedSaleDate,
         expectedSalePrice:    fields.expectedSalePrice,
-        saleRegulated:        false
+        saleRegulated:        fields.saleRegulated === true
       }],
       salePlan: {
         targetSaleCount: 1,
@@ -1156,7 +1428,8 @@
         excludedHouseIds: [],
         allowSystemToChooseSaleTargets: false,
         allowYearSplitting: false,
-        targetSaleYears: [2026]
+        targetSaleYears: [2026],
+        saleDate: fields.expectedSaleDate
       }
     };
   }
@@ -1233,6 +1506,43 @@
           expectedSaleDate:  '2026-08-31', expectedSalePrice: 1000000000, basicDeductionUsed: false,
           residenceMonths:   0
         }
+      },
+      // ── v0.3-A sanity 2건 (TC-011·012, 작업지시서 06 §10-3-1) ──
+      {
+        // TC-011: 2주택 + saleRegulated=true → 중과 +20%p
+        //   transferGain=480M → taxableGain=480M → longTermDeduction=0 (중과)
+        //   → capitalGainIncome=480M → taxBase=477.5M (5구간 38%? bracket=6 (300M-500M, 40%))
+        //   누적 baseTax_with_addition (중과 +20%p, 6구간까지):
+        //     1: 14M × 0.26 = 3,640,000 / 2: 36M × 0.35 = 12,600,000 / 3: 38M × 0.44 = 16,720,000
+        //     4: 62M × 0.55 = 34,100,000 / 5: 150M × 0.58 = 87,000,000  → 합 154,060,000
+        //   calculatedTax = 154,060,000 + (477.5M - 300M)(0.40 + 0.20) = 260,560,000
+        //   localIncomeTax = floor(260,560,000 × 0.1) = 26,056,000
+        //   totalTax = 286,616,000
+        id: 'TC-011', expectedTotalTax: 286616000, expectedTaxBase: 477500000,
+        fields: {
+          householdHouseCount: 2,
+          saleRegulated:     true,
+          acquisitionDate:   '2014-05-01', acquisitionPrice:  500000000, necessaryExpense:  20000000,
+          expectedSaleDate:  '2026-05-15', expectedSalePrice: 1000000000, basicDeductionUsed: false,
+          residenceMonths:   0
+        }
+      },
+      {
+        // TC-012: 3주택 + saleRegulated=true → 중과 +30%p
+        //   누적 baseTax_with_addition (중과 +30%p, 6구간까지):
+        //     1: 14M × 0.36 = 5,040,000 / 2: 36M × 0.45 = 16,200,000 / 3: 38M × 0.54 = 20,520,000
+        //     4: 62M × 0.65 = 40,300,000 / 5: 150M × 0.68 = 102,000,000 → 합 184,060,000
+        //   calculatedTax = 184,060,000 + (477.5M - 300M)(0.40 + 0.30) = 308,310,000
+        //   localIncomeTax = floor(308,310,000 × 0.1) = 30,831,000
+        //   totalTax = 339,141,000
+        id: 'TC-012', expectedTotalTax: 339141000, expectedTaxBase: 477500000,
+        fields: {
+          householdHouseCount: 3,
+          saleRegulated:     true,
+          acquisitionDate:   '2014-05-01', acquisitionPrice:  500000000, necessaryExpense:  20000000,
+          expectedSaleDate:  '2026-05-15', expectedSalePrice: 1000000000, basicDeductionUsed: false,
+          residenceMonths:   0
+        }
       }
     ];
 
@@ -1262,7 +1572,8 @@
     return {
       ok: allOk,
       taxRulesSelfTest: rulesSt,
-      sanityChecks: { ok: allOk, checks: checks }
+      // v0.2 호환: checks 키 보존 / v0.3-A 보강: results 별칭 (작업지시서 06 §11-4-2)
+      sanityChecks: { ok: allOk, checks: checks, results: checks }
     };
   }
 
@@ -1301,6 +1612,9 @@
     calculateLongTermDeduction:    calculateLongTermDeduction,
     // v0.2 신규 보조 헬퍼 (1종)
     computeHoldingYears:           computeHoldingYears,
+    // v0.3-A 신규 (1종 + 1종 헬퍼)
+    isHeavyTaxationApplicable:     isHeavyTaxationApplicable,
+    computeHeavyProgressiveTax:    computeHeavyProgressiveTax,
     // 자체검증 (1종)
     selfTest: selfTest
   };

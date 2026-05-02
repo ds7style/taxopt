@@ -539,17 +539,18 @@
   assert(st.ok === true, 'tax_engine.selfTest() ok=true');
   assert(st.taxRulesSelfTest && st.taxRulesSelfTest.ok === true,
          'selfTest 결과에 tax_rules selfTest ok=true 포함');
-  // v0.2: sanityChecks 6건 (TC-001/003/005 + TC-006/008/010, 작업지시서 §11-2-9)
+  // v0.3-A: sanityChecks 8건 (v0.2 6건 + TC-011·012, 작업지시서 06 §10-3-1)
   assert(st.sanityChecks && Array.isArray(st.sanityChecks.checks) &&
-         st.sanityChecks.checks.length === 6,
-         'selfTest sanityChecks 6건 (TC-001/003/005 + TC-006/008/010)');
+         st.sanityChecks.checks.length === 8,
+         'selfTest sanityChecks 8건 (v0.2 6건 + TC-011·012)');
   if (st.sanityChecks && st.sanityChecks.checks) {
     var ids = st.sanityChecks.checks.map(function (c) { return c.id; });
     assert(ids.indexOf('TC-001') >= 0, 'sanityChecks에 TC-001 포함');
     assert(ids.indexOf('TC-003') >= 0, 'sanityChecks에 TC-003 포함');
     assert(ids.indexOf('TC-005') >= 0, 'sanityChecks에 TC-005 포함');
   }
-  assertEq(taxEngine.ENGINE_VERSION, 'v0.2.0-post-20260510', 'ENGINE_VERSION');
+  // v0.3-A: ENGINE_VERSION 갱신 (작업지시서 06 §4-7 + §10-1 (a) strict-eq 1라인 갱신)
+  assertEq(taxEngine.ENGINE_VERSION, 'v0.3.0-A', 'ENGINE_VERSION');
 
   // ================================================================
   // 그룹 2 — validateCaseData (v0.1 회귀)
@@ -666,8 +667,9 @@
                tc.id + ' metrics.effectiveTaxRate ≈ totalTax/salePrice');
 
     // 메타 (작업지시서 §2-3 단서 (a)·(c) 적용 — 호출 측 모듈 v0.2 갱신 반영)
-    assertEq(result.ruleVersion,   'v0.2.0-post-20260510', tc.id + ' ruleVersion');
-    assertEq(result.engineVersion, 'v0.2.0-post-20260510', tc.id + ' engineVersion');
+    // v0.3-A 갱신 (작업지시서 06 §10-1 (a) strict-eq 라인 갱신 — golden 테스트가 매번 이 라인을 호출)
+    assertEq(result.ruleVersion,   'v0.3.0-post-20260510', tc.id + ' ruleVersion');
+    assertEq(result.engineVersion, 'v0.3.0-A',             tc.id + ' engineVersion');
   });
 
   // ================================================================
@@ -778,14 +780,16 @@
   assert(!hasFlag(r001, 'TRANSFER_LOSS_DETECTED'),
           'TC-001 TRANSFER_LOSS_DETECTED 미발동');
 
-  // (4) OUT_OF_V01_SCOPE_REGULATED_AREA — v0.2 발동조건 축소 (saleRegulated만)
+  // (4) OUT_OF_V01_SCOPE_REGULATED_AREA — v0.3-A 폐기 (작업지시서 06 §4-6-4 + §12-2 N-19)
+  //   v0.3-A에서 saleRegulated 활성 입력 전환으로 "v0.1 범위 외" 의미 소멸.
+  //   대체: SALE_REGULATED_USER_INPUT (info, 항상 발동).
   var rRegulated = taxEngine.calculateSingleTransfer(
     buildCaseData(TC_GOLDEN_V01[0].input, { saleRegulated: true })
   );
-  assert(hasFlag(rRegulated, 'OUT_OF_V01_SCOPE_REGULATED_AREA'),
-         'saleRegulated=true → OUT_OF_V01_SCOPE_REGULATED_AREA 발동');
+  assert(!hasFlag(rRegulated, 'OUT_OF_V01_SCOPE_REGULATED_AREA'),
+         'saleRegulated=true → OUT_OF_V01_SCOPE_REGULATED_AREA 미발동 (v0.3-A 폐기)');
   assert(!hasFlag(r001, 'OUT_OF_V01_SCOPE_REGULATED_AREA'),
-         '비조정대상 → OUT_OF_V01_SCOPE_REGULATED_AREA 미발동');
+         '비조정대상 → OUT_OF_V01_SCOPE_REGULATED_AREA 미발동 (v0.3-A 폐기)');
 
   // (3) HIGH_VALUE_HOUSE — 12억 경계 (v0.2 변경: !is1Se1House 조건 추가)
   var rHigh = taxEngine.calculateSingleTransfer(buildCaseData({
@@ -1498,11 +1502,278 @@
          'TC-006 holdingRate !== undefined');
 
   // ================================================================
+  // v0.3-A 신규 회귀 테스트 그룹 A~F (작업지시서 06 §10-3)
+  // ================================================================
+
+  // ----------------------------------------------------------------
+  // TC-011~014 caseData 빌더 (v0.3-A 골든셋, 작업지시서 06 §10-2)
+  // 모든 4건 공통 베이스: salePrice=10억, acquisitionPrice=5억, 필요경비 2천만,
+  //                       acquisitionDate=2014-05-01, saleDate=2026-05-15, 보유 12년
+  // ----------------------------------------------------------------
+  function buildV03ACase(householdHouseCount, saleRegulated) {
+    return {
+      caseId: null, baseYear: 2026, householdMembers: 1,
+      householdHouseCount: householdHouseCount,
+      isOneTimeTwoHouses: false, basicDeductionUsed: false,
+      houses: [{
+        id: 'A', nickname: '주택 A', location: '',
+        acquisitionDate:  '2014-05-01',
+        acquisitionPrice:  500000000,
+        necessaryExpense:   20000000,
+        acquisitionRegulated: false,
+        residenceMonths:   0,
+        livingNow:         false,
+        expectedSaleDate:  '2026-05-15',
+        expectedSalePrice: 1000000000,
+        saleRegulated:     saleRegulated
+      }],
+      salePlan: {
+        targetSaleCount: 1, candidateHouseIds: ['A'], fixedSaleHouseIds: ['A'],
+        excludedHouseIds: [], allowSystemToChooseSaleTargets: false,
+        allowYearSplitting: false, targetSaleYears: [2026],
+        saleDate: '2026-05-15'
+      }
+    };
+  }
+
+  // ----------------------------------------------------------------
+  // 그룹 v0.3-A_A. selfTest 부트스트랩 + 가드 2-A 검증 (§10-3-1)
+  // ----------------------------------------------------------------
+  setGroup('그룹A v0.3-A selfTest');
+
+  var stV3 = taxEngine.selfTest();
+  assertEq(stV3.ok, true, 'selfTest().ok === true');
+  assertEq(stV3.taxRulesSelfTest.ok, true, 'taxRulesSelfTest.ok === true');
+  assertEq(stV3.sanityChecks.ok, true, 'sanityChecks.ok === true');
+  assertEq(stV3.sanityChecks.checks.length, 8,
+    'sanityChecks 8건 (v0.2 6건 + TC-011·012)');
+  // sanityChecks.results 별칭 검증
+  assert(Array.isArray(stV3.sanityChecks.results) &&
+         stV3.sanityChecks.results.length === 8,
+    'sanityChecks.results 별칭 (8건)');
+  // sanity 8건 ID 명시 검증
+  var stIds = stV3.sanityChecks.checks.map(function (c) { return c.id; });
+  ['TC-001','TC-003','TC-005','TC-006','TC-008','TC-010','TC-011','TC-012'].forEach(function (id) {
+    assert(stIds.indexOf(id) >= 0, 'sanityChecks 포함: ' + id);
+  });
+  assertEq(taxEngine.ENGINE_VERSION, 'v0.3.0-A', 'ENGINE_VERSION === "v0.3.0-A"');
+  assertEq(typeof taxEngine.isHeavyTaxationApplicable, 'function',
+    'isHeavyTaxationApplicable 노출');
+
+  // ----------------------------------------------------------------
+  // 그룹 v0.3-A_B. isHeavyTaxationApplicable 4조건 검증 (§10-3-2)
+  // ----------------------------------------------------------------
+  setGroup('그룹B v0.3-A heavyTaxation 평가');
+
+  // 4조건 모두 true → true (TC-011 케이스)
+  assertEq(taxEngine.isHeavyTaxationApplicable(buildV03ACase(2, true), { is1Se1House: false }),
+    true, '4조건 모두 true → true');
+
+  // condition1 차단 (단주택)
+  assertEq(taxEngine.isHeavyTaxationApplicable(buildV03ACase(1, true), { is1Se1House: false }),
+    false, 'condition1 차단 (단주택) → false');
+
+  // condition2 차단 (saleRegulated=false)
+  assertEq(taxEngine.isHeavyTaxationApplicable(buildV03ACase(2, false), { is1Se1House: false }),
+    false, 'condition2 차단 (saleRegulated=false) → false');
+
+  // condition3 차단 (saleDate < 2026-05-10)
+  var earlyCase = buildV03ACase(2, true);
+  earlyCase.salePlan.saleDate = '2026-05-09';
+  earlyCase.houses[0].expectedSaleDate = '2026-05-09';
+  assertEq(taxEngine.isHeavyTaxationApplicable(earlyCase, { is1Se1House: false }),
+    false, 'condition3 차단 (saleDate < 2026-05-10) → false');
+
+  // condition4 차단 (is1Se1House=true)
+  assertEq(taxEngine.isHeavyTaxationApplicable(buildV03ACase(2, true), { is1Se1House: true }),
+    false, 'condition4 차단 (is1Se1House=true) → false');
+
+  // intermediates 누락 시 안전 false
+  assertEq(taxEngine.isHeavyTaxationApplicable(buildV03ACase(2, true), {}),
+    false, 'intermediates.is1Se1House 누락 → false (방어)');
+
+  // ----------------------------------------------------------------
+  // 그룹 v0.3-A_C. 단계 4 변경 검증 (장특공 배제) (§10-3-3)
+  // ----------------------------------------------------------------
+  setGroup('그룹C v0.3-A 단계4 장특공 배제');
+
+  var rTC011 = taxEngine.calculateSingleTransfer(buildV03ACase(2, true));
+  // 중과 발동 시 장특공 0
+  assertEq(rTC011.steps.longTermDeduction, 0,
+    'TC-011 중과 발동 → longTermDeduction === 0');
+  assertEq(rTC011.steps.appliedDeductionTable, null,
+    'TC-011 중과 발동 → appliedDeductionTable === null');
+  assertEq(rTC011.steps.holdingRate, 0,
+    'TC-011 중과 발동 → holdingRate === 0');
+  assertEq(rTC011.steps.residenceRate, 0,
+    'TC-011 중과 발동 → residenceRate === 0');
+  assertEq(rTC011.steps.totalRate, 0,
+    'TC-011 중과 발동 → totalRate === 0');
+  assertEq(rTC011.steps.heavyRateAddition, 0.20,
+    'TC-011 중과 발동 → heavyRateAddition === 0.20');
+
+  // 중과 미발동 (TC-013) → v0.2 결과 그대로
+  var rTC013 = taxEngine.calculateSingleTransfer(buildV03ACase(2, false));
+  assertEq(rTC013.steps.isHeavyTaxation, false,
+    'TC-013 saleRegulated=false → isHeavyTaxation === false');
+  assertEq(rTC013.steps.heavyRateAddition, null,
+    'TC-013 중과 미발동 → heavyRateAddition === null');
+  assertEq(rTC013.steps.appliedDeductionTable, 1,
+    'TC-013 중과 미발동 → appliedDeductionTable === 1 (v0.2 표 1)');
+
+  // 중과 + 보유 ≥ 3년 → LONG_TERM_DEDUCTION_EXCLUDED_BY_MULTI_HOUSE_HEAVY 발동
+  assert(hasFlag(rTC011, 'LONG_TERM_DEDUCTION_EXCLUDED_BY_MULTI_HOUSE_HEAVY'),
+    'TC-011 중과 + 보유 12년 → LONG_TERM_DEDUCTION_EXCLUDED_BY_MULTI_HOUSE_HEAVY 발동');
+
+  // ----------------------------------------------------------------
+  // 그룹 v0.3-A_D. 단계 9 변경 검증 (가산세율 동적 재계산 + max 비교) (§10-3-4)
+  // ----------------------------------------------------------------
+  setGroup('그룹D v0.3-A 단계9 가산세율');
+
+  // 9-A-1: 중과 + over2y (TC-011·012)
+  assertEq(rTC011.steps.appliedRate.type, 'progressive_with_heavy',
+    'TC-011 over2y+중과 → appliedRate.type === "progressive_with_heavy"');
+  assertEq(typeof rTC011.steps.appliedRate.bracket, 'number',
+    'TC-011 appliedRate.bracket 채워짐 (number)');
+  assertEq(rTC011.steps.appliedRate.addition, 0.20,
+    'TC-011 appliedRate.addition === 0.20 === heavyRateAddition');
+  assertEq(rTC011.steps.shortTermTax, null,
+    'TC-011 over2y → shortTermTax === null');
+  assertEq(rTC011.steps.heavyProgressiveTax, null,
+    'TC-011 over2y → heavyProgressiveTax === null');
+
+  // 9-A-2: 중과 + under2y (max 비교)
+  // 보유 1년 6개월 (2025-05-01 → 2026-12-15) — 보유 < 2년, 중과
+  var underCase = buildV03ACase(2, true);
+  underCase.houses[0].acquisitionDate = '2025-05-01';
+  underCase.houses[0].expectedSaleDate = '2026-12-15';
+  underCase.salePlan.saleDate = '2026-12-15';
+  var rUnder = taxEngine.calculateSingleTransfer(underCase);
+  assertEq(rUnder.steps.holdingPeriodBranch, 'under2y',
+    'underCase: holdingPeriodBranch === "under2y"');
+  assertEq(rUnder.steps.isHeavyTaxation, true,
+    'underCase: isHeavyTaxation === true');
+  assert(typeof rUnder.steps.shortTermTax === 'number',
+    'underCase: shortTermTax !== null (number)');
+  assert(typeof rUnder.steps.heavyProgressiveTax === 'number',
+    'underCase: heavyProgressiveTax !== null (number)');
+  assertEq(rUnder.steps.calculatedTax,
+           Math.max(rUnder.steps.shortTermTax, rUnder.steps.heavyProgressiveTax),
+    'underCase: calculatedTax === max(shortTermTax, heavyProgressiveTax)');
+  assertEq(rUnder.steps.appliedRate.type, 'short_term_60or70_vs_heavy',
+    'underCase: appliedRate.type === "short_term_60or70_vs_heavy"');
+  assertEq(rUnder.steps.appliedRate.comparedHeavy, true,
+    'underCase: appliedRate.comparedHeavy === true');
+  assert(rUnder.steps.appliedRate.chosen === 'short_term' ||
+         rUnder.steps.appliedRate.chosen === 'heavy_progressive',
+    'underCase: appliedRate.chosen ∈ {short_term, heavy_progressive}');
+  assert(hasFlag(rUnder, 'HEAVY_TAX_SHORT_TERM_COMPARISON'),
+    'underCase: HEAVY_TAX_SHORT_TERM_COMPARISON 발동');
+
+  // 9-A-1 (TC-011) HEAVY_TAX_SHORT_TERM_COMPARISON 미발동 (over2y)
+  assert(!hasFlag(rTC011, 'HEAVY_TAX_SHORT_TERM_COMPARISON'),
+    'TC-011 over2y → HEAVY_TAX_SHORT_TERM_COMPARISON 미발동');
+
+  // ----------------------------------------------------------------
+  // 그룹 v0.3-A_E. TC-011~014 골든셋 (4건, §10-3-5)
+  // ----------------------------------------------------------------
+  setGroup('그룹E v0.3-A TC-011~014');
+
+  var GOLDEN_V03A = [
+    { id: 'TC-011', count: 2, regulated: true,  expected: 286616000, isHeavy: true,  addition: 0.20  },
+    { id: 'TC-012', count: 3, regulated: true,  expected: 339141000, isHeavy: true,  addition: 0.30  },
+    { id: 'TC-013', count: 2, regulated: false, expected: 130878000, isHeavy: false, addition: null  },
+    { id: 'TC-014', count: 3, regulated: false, expected: 130878000, isHeavy: false, addition: null  }
+  ];
+
+  GOLDEN_V03A.forEach(function (tc) {
+    var r = taxEngine.calculateSingleTransfer(buildV03ACase(tc.count, tc.regulated));
+    var s = r.steps;
+    // 핵심 KPI: totalTax (4자 일치)
+    assertEq(s.totalTax,            tc.expected, tc.id + ' totalTax === ' + tc.expected);
+    assertEq(r.metrics.totalTax,    tc.expected, tc.id + ' metrics.totalTax === steps.totalTax');
+    // 단계별 검증
+    assertEq(s.transferGain,        480000000,   tc.id + ' transferGain');
+    assertEq(s.is1Se1House,         false,       tc.id + ' is1Se1House (다주택)');
+    assertEq(s.isHighValueHouse,    false,       tc.id + ' isHighValueHouse');
+    assertEq(s.holdingYears,        12,          tc.id + ' holdingYears === 12');
+    assertEq(s.holdingPeriodBranch, 'over2y',    tc.id + ' holdingPeriodBranch === "over2y"');
+    assertEq(s.basicDeduction,      2500000,     tc.id + ' basicDeduction');
+    assertEq(s.isHeavyTaxation,     tc.isHeavy,  tc.id + ' isHeavyTaxation');
+    assertEq(s.heavyRateAddition,   tc.addition, tc.id + ' heavyRateAddition');
+    assertEq(s.shortTermTax,        null,        tc.id + ' shortTermTax === null (over2y)');
+    assertEq(s.heavyProgressiveTax, null,        tc.id + ' heavyProgressiveTax === null (over2y)');
+    // 단계 4
+    if (tc.isHeavy) {
+      assertEq(s.longTermDeduction,    0,    tc.id + ' 중과 → longTermDeduction === 0');
+      assertEq(s.appliedDeductionTable, null, tc.id + ' 중과 → appliedDeductionTable === null');
+      assertEq(s.totalRate,            0,    tc.id + ' 중과 → totalRate === 0');
+      assertEq(s.appliedRate.type, 'progressive_with_heavy',
+        tc.id + ' 중과 → appliedRate.type === "progressive_with_heavy"');
+    } else {
+      // TC-013·014: v0.2 그대로 (TC-008 회귀, 표 1 + 보유 12년 → 0.24)
+      assertEq(s.appliedDeductionTable, 1,    tc.id + ' 회귀 → appliedDeductionTable === 1');
+      assertEq(s.totalRate,        0.24,     tc.id + ' 회귀 → totalRate === 0.24 (표 1, 12년)');
+      assertEq(s.appliedRate.type, 'basic',  tc.id + ' 회귀 → appliedRate.type === "basic"');
+    }
+    // 단계 11
+    assertEq(s.localIncomeTax, Math.floor(s.calculatedTax * 0.1),
+      tc.id + ' localIncomeTax === floor(calculatedTax × 0.1)');
+    // 단계 13
+    assertEq(s.netAfterTaxSaleAmount, 1000000000 - tc.expected,
+      tc.id + ' netAfterTaxSaleAmount === 10억 - totalTax');
+  });
+
+  // ----------------------------------------------------------------
+  // 그룹 v0.3-A_F. issueFlag 25종 발동 검증 (§10-3-6)
+  // ----------------------------------------------------------------
+  setGroup('그룹F v0.3-A issueFlag');
+
+  var rTC012 = taxEngine.calculateSingleTransfer(buildV03ACase(3, true));
+  var rTC014 = taxEngine.calculateSingleTransfer(buildV03ACase(3, false));
+
+  // v0.3-A 신규 5종
+  assert( hasFlag(rTC011, 'HEAVY_TAXATION_APPLIED'),
+    'TC-011 HEAVY_TAXATION_APPLIED 발동');
+  assertEq(findFlag(rTC011, 'HEAVY_TAXATION_APPLIED').severity, 'warning',
+    'HEAVY_TAXATION_APPLIED severity === "warning"');
+  assert( hasFlag(rTC011, 'HEAVY_TAXATION_2_HOUSES'),
+    'TC-011 HEAVY_TAXATION_2_HOUSES 발동');
+  assert(!hasFlag(rTC011, 'HEAVY_TAXATION_3_HOUSES'),
+    'TC-011 HEAVY_TAXATION_3_HOUSES 미발동 (2주택)');
+  assert( hasFlag(rTC012, 'HEAVY_TAXATION_3_HOUSES'),
+    'TC-012 HEAVY_TAXATION_3_HOUSES 발동');
+  assert(!hasFlag(rTC012, 'HEAVY_TAXATION_2_HOUSES'),
+    'TC-012 HEAVY_TAXATION_2_HOUSES 미발동 (3주택)');
+  assert( hasFlag(rTC011, 'LONG_TERM_DEDUCTION_EXCLUDED_BY_MULTI_HOUSE_HEAVY'),
+    'TC-011 LONG_TERM_DEDUCTION_EXCLUDED_BY_MULTI_HOUSE_HEAVY 발동 (보유 12년)');
+
+  // v0.3-A 보조 3종
+  assert( hasFlag(rTC011, 'SALE_REGULATED_USER_INPUT'),
+    'TC-011 SALE_REGULATED_USER_INPUT 발동 (info, 항상)');
+  assert( hasFlag(rTC013, 'SALE_REGULATED_USER_INPUT'),
+    'TC-013 SALE_REGULATED_USER_INPUT 발동 (info, 항상)');
+  assert( hasFlag(rTC011, 'HEAVY_TAX_EXCLUSION_NOT_HANDLED'),
+    'TC-011 HEAVY_TAX_EXCLUSION_NOT_HANDLED 발동 (중과)');
+  assert(!hasFlag(rTC013, 'HEAVY_TAX_EXCLUSION_NOT_HANDLED'),
+    'TC-013 HEAVY_TAX_EXCLUSION_NOT_HANDLED 미발동 (중과 미발동)');
+  assert(!hasFlag(rTC014, 'HEAVY_TAX_EXCLUSION_NOT_HANDLED'),
+    'TC-014 HEAVY_TAX_EXCLUSION_NOT_HANDLED 미발동 (중과 미발동)');
+  assert( hasFlag(rTC011, 'HEAVY_TAX_TRANSITION_NOT_HANDLED'),
+    'TC-011 HEAVY_TAX_TRANSITION_NOT_HANDLED 발동 (중과)');
+
+  // 폐기 1종 — 어떤 케이스에서도 미발동
+  assert(!hasFlag(rTC011, 'OUT_OF_V01_SCOPE_REGULATED_AREA'),
+    'TC-011 OUT_OF_V01_SCOPE_REGULATED_AREA 미발동 (폐기)');
+  assert(!hasFlag(rTC013, 'OUT_OF_V01_SCOPE_REGULATED_AREA'),
+    'TC-013 OUT_OF_V01_SCOPE_REGULATED_AREA 미발동 (폐기)');
+
+  // ================================================================
   // 결과 출력
   // ================================================================
 
   console.log('==========================================');
-  console.log('=== tax_engine v0.2.0 회귀 테스트 ===');
+  console.log('=== tax_engine v0.3-A 회귀 테스트 ===');
   console.log('==========================================');
   Object.keys(groupCounters).forEach(function (g) {
     var c = groupCounters[g];

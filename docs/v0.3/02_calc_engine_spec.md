@@ -199,6 +199,9 @@ salePlan의 **정본은 작업 창 #2 산출물(`docs/02_saleplan_ui_design.md` 
 | `allowSystemToChooseSaleTargets` | `boolean` | `true`, `false` | `true` | 필수 | `false`이면 `fixedSaleHouseIds.length === targetSaleCount`이어야 의미 있음 |
 | `allowYearSplitting` | `boolean` | `true`, `false` | `false` | 필수 | `targetSaleCount === 1`이면 강제로 `false` |
 | `targetSaleYears` | `number[]` | `[2025]`, `[2026]`, … | `[caseData.baseYear]` | 필수 | `allowYearSplitting === false`이면 길이 1, `true`이면 길이 ≥ 2 |
+| `saleYearConstraint` | `string` | `"FIXED"`, `"DEADLINE"`, `"FLEXIBLE"` | `"FIXED"` | 선택 | **v0.3-B 신규**. 양도 시기 제약 유형. v0.3-B 인터페이스만 사전 설계 (v0.4·post-MVP에서 본격 활성) |
+| `saleDeadlineYear` | `number` | `caseData.baseYear` 이상 | `caseData.baseYear + 3` | 선택 | **v0.3-B 신규**. 양도 기한 연도. `saleYearConstraint === "DEADLINE"`일 때 필수. v0.3-B 인터페이스만 사전 설계 |
+| `preferredSaleYearFrom` | `number` | `caseData.baseYear` 이상 | `caseData.baseYear` | 선택 | **v0.3-B 신규**. 선호 양도 시작 연도. v0.3-B 인터페이스만 사전 설계 |
 
 #### 2-2-2. 검증 규칙 (정본 §2-2 인용 — `validateSalePlan` 처리 항목)
 
@@ -210,6 +213,10 @@ salePlan의 **정본은 작업 창 #2 산출물(`docs/02_saleplan_ui_design.md` 
 | `SP_W002` | `allowYearSplitting === true` AND `targetSaleYears.length < 2` | 경고 |
 | `SP_W003` | `targetSaleCount === 1` AND `allowYearSplitting === true` | 경고 (분산 양도 의미 없음) |
 | `SP_W004` | `candidateHouseIds.length - excludedHouseIds.length < targetSaleCount` | 경고 (남은 후보 부족) |
+| `SP_E003` | `saleYearConstraint === "DEADLINE"` AND `saleDeadlineYear` 미지정 | 차단 |
+| `SP_E004` | `preferredSaleYearFrom > saleDeadlineYear` | 차단 |
+| `SP_W005` | `saleYearConstraint === "FLEXIBLE"` AND `targetSaleYears.length < 2` | 경고 (유연 제약 시 후보 연도 비교 권고) |
+| `SP_W006` | `saleDeadlineYear < caseData.baseYear` | 경고 (과거 연도) |
 
 > **검증 시점**: `validateCaseData(caseData)` 진입 시 `validateSalePlan(caseData.salePlan)`을 호출. v0.3-A의 `validateCaseData` 13종 검증 + 자동 보정 7종은 그대로 보존. salePlan 검증은 신규 추가.
 
@@ -222,10 +229,42 @@ salePlan의 **정본은 작업 창 #2 산출물(`docs/02_saleplan_ui_design.md` 
 | ③ 매도 대상 주택이 이미 정해져 있는지 | `allowSystemToChooseSaleTargets` |
 | ④ 반드시 팔아야 하는 주택 | `fixedSaleHouseIds` |
 | ⑤ 반드시 보유해야 하는 주택 | `excludedHouseIds` |
-| ⑥ 양도 시점이 고정되어 있는지 | `targetSaleYears` (길이 1=고정, 길이 ≥ 2=비교) |
+| ⑥ 양도 시점이 고정되어 있는지 | `targetSaleYears` (길이 1=고정, 길이 ≥ 2=비교) || ⑥ 양도 시점이 고정되어 있는지 | `saleYearConstraint` (`"FIXED"`/`"DEADLINE"`/`"FLEXIBLE"`) + `saleDeadlineYear` + `preferredSaleYearFrom` + `targetSaleYears` |
 | ⑦ 과세연도 분산 허용 여부 | `allowYearSplitting` |
 
 ✅ 7개 항목 모두 매핑됨.
+
+#### 2-2-4. 양도 시기 영역 사전 설계 (v0.3-B 신규)
+
+사용자 25번째 짚음(양도 시기 입력값 사전 설계 — 사후 부담 회피)에 따라 v0.3-B에서 양도 시기 영역 4 필드를 사전 설계한다. **v0.3-B에서는 인터페이스만 사전 확정**하며, 시나리오 엔진 산식 본격 반영은 v0.4 또는 post-MVP B-028~B-031(보유세·NPV 통합) 시점.
+
+##### `saleYearConstraint` 분기
+
+| 값 | 의미 | v0.3-B 시나리오 엔진 처리 |
+|---|---|---|
+| `FIXED` | 고정 시점 (예: 2026년 양도 확정) | `targetSaleYears = [고정 연도]` (시스템 분기 없음) |
+| `DEADLINE` | 기한 내 양도 (예: 2028년 말까지) | `targetSaleYears ⊆ [preferredSaleYearFrom, saleDeadlineYear]` (사용자 입력) |
+| `FLEXIBLE` | 유연 (시스템이 최적 시점 비교) | `targetSaleYears = 시스템 자동 (현재년도 + 1~3년)` |
+
+##### v0.3-B vs v0.4·post-MVP 인계
+
+| 영역 | v0.3-B 본격 활성 | v0.4·post-MVP 인계 |
+|---|---|---|
+| `targetSaleYears` 활용 | ✅ 시나리오 엔진이 후보 연도로 시점 분산 시나리오 생성 | — |
+| `saleYearConstraint` 인터페이스 사전 설계 | ✅ 입력 스키마 + UI 사전 확정 | 시나리오 엔진 산식 본격 반영은 **v0.4 또는 post-MVP** |
+| `saleDeadlineYear`·`preferredSaleYearFrom` 인터페이스 사전 설계 | ✅ | 본격 활성은 **v0.4 또는 post-MVP B-028~B-031 (보유세·NPV 통합) 시 본격 활용** |
+| 사용자 deadline 자동 반영 시나리오 가드 | ⚠️ v0.3-B 시나리오 엔진은 `targetSaleYears`만 활용 | v0.4 이후 |
+
+> **핵심 — v0.3-B 인터페이스만 사전 설계**: salePlan 객체 구조에 4 필드 사전 추가 (`saleYearConstraint`·`saleDeadlineYear`·`preferredSaleYearFrom` + 기존 `targetSaleYears` 의미 정정). `calculateSingleTransfer`·`generateScenarios`는 본 필드를 입력으로 받지만 **v0.3-B에서는 `targetSaleYears`만 활용** (다른 3 필드는 v0.4·post-MVP에서 본격 활성). 사후 부담 회피를 위한 인터페이스 사전 확정.
+
+##### 본질 가치 영역과의 정합 (의사결정 #12 + B-028~B-031)
+
+| 본질 영역 | 양도 시기 활용 |
+|---|---|
+| B-028 (보유세 통합 처리) | `saleDeadlineYear` 이후 보유세 부담 종료 시점 결정 |
+| B-029 (가격 전망 통합) | `targetSaleYears` 별 양도가액 변동 반영 |
+| B-030 (통합 NPV 비교) | `referenceYear` 기준 할인율 적용 |
+| B-031 (시나리오 지표 전환) | `saleYearConstraint`별 metricKey 분기 (예: NPV 통합 시) |
 
 ### 2-3. v0.3-A 결과 객체 구조 (호출 인터페이스 — `calculateSingleTransfer` 호출 측)
 
@@ -1228,9 +1267,9 @@ v0.3-A의 issueFlag 카탈로그 25종은 **양도 1건당 발동**되며 v0.3-B
 
 ## 10. 골든셋 (TC-S01~) — v0.3-B 시나리오 비교 신규
 
-### 10-1. 골든셋 신규 4건 일람
+### 10-1. 골든셋 신규 6건 일람
 
-v0.3-B 시나리오 비교를 검증하기 위한 신규 골든셋 4건. 정답값은 검증팀 손계산 후 결정 권고 (본 명세서는 산식 명시 + 기대 시나리오 타입 + 기대 추천 시나리오 ID까지).
+v0.3-B 시나리오 비교를 검증하기 위한 신규 골든셋 6건. 정답값은 검증팀 손계산 후 결정 권고 (본 명세서는 산식 명시 + 기대 시나리오 타입 + 기대 추천 시나리오 ID까지).
 
 | TC | 보유 | 양도 | 시나리오 타입 | 우선순위 | 검증 의도 |
 |---|---|---|---|---|---|
@@ -1238,8 +1277,12 @@ v0.3-B 시나리오 비교를 검증하기 위한 신규 골든셋 4건. 정답�
 | **TC-S02** | 2주택 (A·B), A 조정·B 비조정 | 2채 (모두) | TYPE_2_ORDER | **필수** | 양도 순서 비교 — A→B vs B→A, 중과 분기 변동 검증 |
 | **TC-S03** | 3주택 (A·B·C) | 1채 (미정) | TYPE_1_WHICH_ONE | **필수** | 3주택 단일 양도 — 첫 양도 +30%p 중과 분기 검증 |
 | TC-S04 | 2주택 (A·B) | 2채 (모두) | TYPE_3_TIMING | 선택 | 시점 분산 비교 — 동일 연도 vs 분산, 기본공제 250만원 효과 검증 |
+| **TC-S05** | 3주택 (A·B 조정 + C 비조정) | 2채 (C 확정 + A·B 중 1채) | TYPE_2_ORDER | **필수 (본질)** | TaxOpt 본질 케이스 — 어느 조정 + 양도 순서 결정. 양도 순서가 가산세율 10%p 차이 |
+| **TC-S06** | 3주택 (A·B 조정 + C 비조정) | 3채 모두 | TYPE_2_ORDER | **필수 (본질)** | TaxOpt 본질 케이스 — 양도 순서 6가지. 1번째 +30%p / 2번째 +20%p / 3번째 1주택 비과세 가능 |
 
 > **TC-S04 (선택) 사유**: 본질 가치 4영역 NPV 미통합 상태에서 시점 분산은 기본공제 250만원 효과만 검증 가능 (제한적). post-MVP B-030 통합 후 본격 검증 권고.
+
+> **TC-S05·TC-S06 (필수, 본질) 사유**: 사용자 24번째 짚음(본질 가치 누락) 정정 적용. TaxOpt가 풀어야 할 본질 의사결정 케이스 — 사용자가 상식적으로 답을 알 수 없음. 5/7 발표 데모 데이터 후보 (B-018 5/5 결정).
 
 ### 10-2. TC-S01 — 2주택자, 1채 양도 (TYPE_1_WHICH_ONE)
 
@@ -1611,7 +1654,314 @@ caseData = {
 - 같은 연도 2건(SC-1·SC-3·SC-4·SC-6) vs 분산(SC-2·SC-5)에서 **분산이 기본공제 250만원 추가 적용으로 합계 totalTax가 작음**.
 - 본질 가치 4영역 통합(B-030 NPV) 후 본격 검증 권고.
 
-### 10-6. 골든셋 일람표 (v0.3-A 회귀 14건 + v0.3-B 신규 4건)
+### 10-6. TC-S05 — 3주택자, 2채 양도 (조정 + 비조정 혼합) — TaxOpt 본질 케이스
+
+#### 10-6-1. 핵심 의사결정 영역
+
+**TC-S05는 사용자가 실제로 어려워하는 의사결정 영역**. 단순 조정 vs 비조정 1채 선택을 넘어, 다음 본질 변수 동시 작용:
+
+- 비조정대상 1채(C)는 양도 확정 (상식)
+- **조정대상 2채(A·B) 중 어느 1채를 함께 양도?** ← 본질 의사결정
+- **양도 순서는?** ← 본질 의사결정 (장기보유특별공제 효과 + 다주택 중과 분기)
+
+#### 10-6-2. 입력
+
+```js
+caseData = {
+  baseYear: 2026,
+  householdMembers: 1,
+  basicDeductionUsed: false,
+  householdHouseCount: 3,
+  isOneTimeTwoHouses: false,
+  
+  houses: [
+    {
+      id: "A",
+      acquisitionDate: "2010-03-15",         // ★ 보유 16년
+      acquisitionPrice: 400_000_000,
+      necessaryExpense: 20_000_000,
+      acquisitionRegulated: false,
+      residenceMonths: 0,
+      livingNow: false,
+      expectedSaleDate: "2026-09-15",
+      expectedSalePrice: 1_200_000_000,      // 12억
+      saleRegulated: true                    // ★ 조정대상
+    },
+    {
+      id: "B",
+      acquisitionDate: "2018-05-10",         // ★ 보유 8년
+      acquisitionPrice: 600_000_000,
+      necessaryExpense: 15_000_000,
+      acquisitionRegulated: false,
+      residenceMonths: 0,
+      livingNow: false,
+      expectedSaleDate: "2026-09-15",
+      expectedSalePrice: 1_000_000_000,      // 10억
+      saleRegulated: true                    // ★ 조정대상
+    },
+    {
+      id: "C",
+      acquisitionDate: "2020-08-01",         // ★ 보유 6년
+      acquisitionPrice: 700_000_000,
+      necessaryExpense: 10_000_000,
+      acquisitionRegulated: false,
+      residenceMonths: 0,
+      livingNow: false,
+      expectedSaleDate: "2026-09-15",
+      expectedSalePrice: 850_000_000,        // 8.5억
+      saleRegulated: false                   // ★ 비조정대상
+    }
+  ],
+  
+  salePlan: {
+    targetSaleCount: 2,                      // 2채 양도
+    candidateHouseIds: ["A", "B", "C"],
+    fixedSaleHouseIds: ["C"],                // ★ C 양도 확정
+    excludedHouseIds: [],
+    allowSystemToChooseSaleTargets: true,    // A·B 중 시스템이 선택
+    saleYearConstraint: "FIXED",
+    saleDeadlineYear: 2026,
+    preferredSaleYearFrom: 2026,
+    allowYearSplitting: false,
+    targetSaleYears: [2026]
+  }
+};
+```
+
+#### 10-6-3. 시나리오 생성 흐름
+
+| 단계 | 결과 |
+|---|---|
+| `classifyScenarioDimensions` | `{ hasMultipleCandidates: true, hasOrderingDecision: true, hasTimingSpread: false }` (A·B 중 1채 + 순서) |
+| `selectMetricKey` | `{ scenarioType: "TYPE_2_ORDER", metricKey: "netAfterTaxSaleAmount", order: "desc" }` (의사결정 #10 D안 우선순위) |
+| `generateSaleTargetCombinations` | `[{A,C}, {B,C}]` (2개 조합 — C는 fixed) |
+| `generateSaleOrderScenarios` | `[[A,C], [C,A], [B,C], [C,B]]` (4개 순열) |
+| `generateSaleYearScenarios` | 4개 (모두 2026년) |
+
+> **본질 — 4 시나리오**: A·B 중 어느 1채 + 양도 순서 → 4 시나리오 비교.
+
+#### 10-6-4. 시뮬레이션 — SC-1 (A→C 순)
+
+##### SC-1 양도 1번째 (A 양도, householdHouseCount=3)
+
+| 단계 | 값 | 비고 |
+|---|---|---|
+| caseData_1.householdHouseCount | 3 | |
+| caseData_1.houses[0].saleRegulated | true | ★ 조정 |
+| 단계 4 | `isHeavyTaxation = true` | 4조건 충족 |
+| `heavyRateAddition` | 0.30 | ★ 3주택 +30%p |
+| `longTermDeduction` | 0 | 중과 시 배제 |
+| `transferGain` | 780,000,000 | 1.2억 − 4억 − 2천만 |
+| `taxBase` | 777,500,000 | |
+| **`totalTax_A`** | **⏳ (검증팀 결정)** | TC-012 패턴 + 양도가액 12억 |
+
+##### SC-1 양도 2번째 (C 양도, householdHouseCount=2)
+
+| 단계 | 값 | 비고 |
+|---|---|---|
+| caseData_2.householdHouseCount | **2** | ★ 상태전이: 3→2 |
+| caseData_2.basicDeductionUsed | **true** | 동일 연도 |
+| caseData_2.houses[0].saleRegulated | false | 비조정 |
+| 단계 4 | `isHeavyTaxation = false` | 조건 2 미충족 (비조정) |
+| `appliedDeductionTable` | 1 (다주택 + 표 1) | 보유 6년 |
+| `holdingYears` | 6 | 2020-08 → 2026-09 |
+| `longTermDeduction` | floor(140,000,000 × 0.12) = 16,800,000 | 표 1: 12% |
+| `taxBase` | 140,000,000 − 16,800,000 − 0 = 123,200,000 | |
+| **`totalTax_C`** | **⏳ (검증팀 결정)** | |
+
+##### SC-1 합계
+
+| metric | 값 |
+|---|---|
+| Σ totalTax | ⏳ + ⏳ = **⏳** |
+| Σ netAfterTaxSaleAmount | (1,200,000,000 − ⏳) + (850,000,000 − ⏳) = **⏳** |
+
+#### 10-6-5. 시뮬레이션 — SC-2 (C→A 순)
+
+##### SC-2 양도 1번째 (C 양도, householdHouseCount=3)
+
+| 단계 | 값 |
+|---|---|
+| caseData_1.houses[0].saleRegulated | false |
+| 단계 4 | `isHeavyTaxation = false` (조건 2 미충족) |
+| `appliedDeductionTable` | 1 (다주택 + 보유 6년 + 표 1: 12%) |
+| **`totalTax_C`** | **⏳ (검증팀)** |
+
+##### SC-2 양도 2번째 (A 양도, householdHouseCount=2)
+
+| 단계 | 값 |
+|---|---|
+| caseData_2.householdHouseCount | **2** |
+| caseData_2.basicDeductionUsed | **true** |
+| caseData_2.houses[0].saleRegulated | true |
+| 단계 4 | `isHeavyTaxation = true` (4조건 충족) |
+| `heavyRateAddition` | **0.20** | ★ 2주택 +20%p (3주택 → 2주택) |
+| **`totalTax_A`** | **⏳ (검증팀)** | TC-011 패턴 + 양도가액 12억 |
+
+> **★ TC-S05 본질 핵심**: SC-1은 A 1번째에 +30%p / SC-2는 A 2번째에 +20%p. **양도 순서 차이가 가산세율 10%p 차이**. 의사결정 #10 D안 TYPE_2_ORDER 정확 작동 검증.
+
+#### 10-6-6. 시나리오 비교 정렬 (예상)
+
+| 시나리오 | 1번째 양도 | 2번째 양도 | 가산세율 합 | Σ totalTax | rank |
+|---|---|---|---|---|---|
+| SC-1 (A→C) | A: +30%p | C: 0 | +30%p | 큼 | 4 |
+| SC-2 (C→A) | C: 0 | A: +20%p | +20%p | 작음 | 1·2 |
+| SC-3 (B→C) | B: +30%p | C: 0 | +30%p | 큼 | 3 |
+| SC-4 (C→B) | C: 0 | B: +20%p | +20%p | 작음 | 1·2 |
+
+**SC-2 또는 SC-4가 rank 1**. C(비조정)을 1번째로 양도 + 조정대상은 2번째에 +20%p.
+
+#### 10-6-7. 검증 의도 — TaxOpt 본질 가치
+
+- **본 케이스가 TaxOpt 본질 케이스**: 사용자가 상식적으로 답을 알 수 없음.
+- 비조정 C는 양도 확정. 조정 A·B 중 어느 1채? + 양도 순서?
+- 양도 순서가 가산세율 10%p 차이 (SC-1·SC-3은 +30%p / SC-2·SC-4는 +20%p).
+- 보유연수 차이 (A 16년 vs B 8년) → 장특공 효과 차이.
+- **C → A 순서가 최적인지 C → B 순서가 최적인지 의사결정 #10 D안 검증**.
+- **post-MVP NPV·보유세 통합 시** 본 케이스의 본질 가치 더욱 명확화.
+
+### 10-7. TC-S06 — 3주택자, 모두 양도 (양도 순서 6가지) — TaxOpt 본질 케이스
+
+#### 10-7-1. 핵심 의사결정 영역
+
+**3주택 모두 양도 시 양도 순서 6가지(3! = 6)**. 본질 의사결정:
+
+- 1번째 양도 → +30%p 중과 부담
+- 2번째 양도 → +20%p 중과 부담
+- 3번째 양도 → 1주택 (비과세 가능 시)
+- **가장 비싼 주택을 마지막에 → 1주택 비과세 효과 극대화 가능**
+
+#### 10-7-2. 입력
+
+```js
+caseData = {
+  baseYear: 2026,
+  householdMembers: 1,
+  basicDeductionUsed: false,
+  householdHouseCount: 3,
+  isOneTimeTwoHouses: false,
+  
+  houses: [
+    {
+      id: "A",
+      acquisitionDate: "2014-05-01",
+      acquisitionPrice: 500_000_000,
+      necessaryExpense: 20_000_000,
+      residenceMonths: 30,                   // ★ 거주 30개월
+      livingNow: false,
+      expectedSalePrice: 1_500_000_000,      // 15억 (가장 비쌈)
+      saleRegulated: true                    // ★ 조정
+    },
+    {
+      id: "B",
+      acquisitionDate: "2016-08-15",
+      acquisitionPrice: 600_000_000,
+      necessaryExpense: 15_000_000,
+      residenceMonths: 0,
+      livingNow: false,
+      expectedSalePrice: 1_000_000_000,      // 10억
+      saleRegulated: true                    // ★ 조정
+    },
+    {
+      id: "C",
+      acquisitionDate: "2018-03-10",
+      acquisitionPrice: 700_000_000,
+      necessaryExpense: 10_000_000,
+      residenceMonths: 0,
+      livingNow: false,
+      expectedSalePrice: 800_000_000,        // 8억 (가장 작음)
+      saleRegulated: false                   // ★ 비조정
+    }
+  ],
+  
+  salePlan: {
+    targetSaleCount: 3,                      // 3채 모두 양도
+    candidateHouseIds: ["A", "B", "C"],
+    fixedSaleHouseIds: ["A", "B", "C"],      // 모두 확정
+    excludedHouseIds: [],
+    allowSystemToChooseSaleTargets: false,
+    saleYearConstraint: "FIXED",
+    saleDeadlineYear: 2026,
+    preferredSaleYearFrom: 2026,
+    allowYearSplitting: false,
+    targetSaleYears: [2026]
+  }
+};
+```
+
+#### 10-7-3. 시나리오 생성 흐름
+
+| 단계 | 결과 |
+|---|---|
+| `classifyScenarioDimensions` | `{ hasMultipleCandidates: false, hasOrderingDecision: true, hasTimingSpread: false }` |
+| `selectMetricKey` | `{ scenarioType: "TYPE_2_ORDER", metricKey: "netAfterTaxSaleAmount", order: "desc" }` |
+| `generateSaleTargetCombinations` | `[{A,B,C}]` (1개 조합) |
+| `generateSaleOrderScenarios` | **6개 순열** — `[A,B,C]`·`[A,C,B]`·`[B,A,C]`·`[B,C,A]`·`[C,A,B]`·`[C,B,A]` |
+| `generateSaleYearScenarios` | 6개 (모두 2026년) |
+
+#### 10-7-4. 시나리오 매트릭스 — 6개
+
+| SC | 양도 순서 | 1번째 (3주택) | 2번째 (2주택) | 3번째 (1주택) |
+|---|---|---|---|---|
+| SC-1 | [A, B, C] | A: 조정 → +30%p | B: 조정 → +20%p | C: 비조정 (1주택 + 거주0M → 비과세 미적용) |
+| SC-2 | [A, C, B] | A: 조정 → +30%p | C: 비조정 → 0 | B: (1주택 + 거주0M → 비과세 미적용) |
+| SC-3 | [B, A, C] | B: 조정 → +30%p | A: 조정 → +20%p | C: (1주택) |
+| SC-4 | [B, C, A] | B: 조정 → +30%p | C: 비조정 → 0 | A: (1주택 + 거주 30M) ★ 거주요건 검증 |
+| SC-5 | [C, A, B] | C: 비조정 → 0 | A: 조정 → +20%p | B: (1주택 + 거주0M → 비과세 미적용) |
+| SC-6 | [C, B, A] | C: 비조정 → 0 | B: 조정 → +20%p | A: (1주택 + 거주 30M) ★ |
+
+> **★ A 거주 30개월**: A는 보유 12년 + 거주 30개월. 1세대1주택 비과세 거주요건(2년 이상 거주) 충족 여부 검증 필요.
+
+#### 10-7-5. 시뮬레이션 — SC-6 (C→B→A 순) 핵심 시나리오
+
+> **SC-6은 본질 케이스**: 가장 비싼 A를 마지막에 + 거주 30개월 → 1주택 비과세 효과 극대화 가능.
+
+##### SC-6 양도 1번째 (C 양도, householdHouseCount=3)
+
+| 단계 | 값 |
+|---|---|
+| 단계 4 | `isHeavyTaxation = false` (비조정) |
+| **`totalTax_C`** | **⏳ (검증팀)** |
+
+##### SC-6 양도 2번째 (B 양도, householdHouseCount=2, basicDeductionUsed=true)
+
+| 단계 | 값 |
+|---|---|
+| 단계 4 | `isHeavyTaxation = true` (4조건 충족) |
+| `heavyRateAddition` | **0.20** |
+| **`totalTax_B`** | **⏳ (검증팀)** |
+
+##### SC-6 양도 3번째 (A 양도, householdHouseCount=1, basicDeductionUsed=true)
+
+| 단계 | 값 |
+|---|---|
+| 단계 2 | `is1Se1House`: 거주 30M ≥ 24M → ★ **검증 대기** (보유 12년 + 거주 2.5년 vs 거주요건 정확 적용) |
+| 비과세 미적용 시 | TC-S02 SC-1 양도 2번째 패턴 |
+| 비과세 적용 시 | TC-009 패턴 (12억 초과분만 안분 과세) |
+| **`totalTax_A`** | **⏳ (검증팀)** |
+
+#### 10-7-6. 시나리오 비교 정렬 (예상)
+
+| 시나리오 | 1번째 가산세율 | 2번째 가산세율 | 3번째 비과세 | 예상 rank |
+|---|---|---|---|---|
+| SC-1 (A→B→C) | +30%p (A 15억) | +20%p (B 10억) | C 비과세 미적용 | 6 |
+| SC-2 (A→C→B) | +30%p (A 15억) | 0 (C 비조정) | B 비과세 미적용 | 5 |
+| SC-3 (B→A→C) | +30%p (B 10억) | +20%p (A 15억) | C 비과세 미적용 | 4 |
+| SC-4 (B→C→A) | +30%p (B 10억) | 0 (C 비조정) | A 거주요건 검증 ★ | 2~3 |
+| SC-5 (C→A→B) | 0 (C 비조정) | +20%p (A 15억) | B 비과세 미적용 | 3~4 |
+| **SC-6 (C→B→A)** | **0 (C 비조정)** | **+20%p (B 10억)** | **A 거주요건 검증 ★** | **1 (예상)** |
+
+**SC-6이 rank 1 (예상)**: 비조정 C 1번째 + 조정 B 2번째 + 가장 비싼 A 마지막 (1주택 비과세 가능 시).
+
+#### 10-7-7. 검증 의도 — TaxOpt 본질 가치 핵심
+
+- **3주택 모두 양도 시 양도 순서가 결정적**.
+- 가장 비싼 주택(A 15억)을 마지막에 → 1주택 비과세 효과 극대화 가능 (거주요건 충족 시).
+- 비조정대상 주택(C)을 1번째에 → 첫 양도 +30%p 중과 회피.
+- 양도 순서 6개 중 1개가 압도적 우수.
+- **post-MVP NPV·보유세 통합 시 본 케이스의 본질 가치 더욱 명확화**.
+
+### 10-8. 골든셋 일람표 (v0.3-A 회귀 14건 + v0.3-B 신규 6건)
 
 | TC | 의도 | 시나리오 수 | 시나리오 타입 | 추천 시나리오 (예상) | 검증/회귀 |
 |---|---|---|---|---|---|
@@ -1622,8 +1972,10 @@ caseData = {
 | **TC-S02** | **2주택 2채 양도 (양도 순서?)** | **2** | **TYPE_2_ORDER** | **SC-2 (B→A)** ⏳ | **v0.3-B 신규** |
 | **TC-S03** | **3주택 1채 양도** | **3** | **TYPE_1_WHICH_ONE** | **SC-3 (C 양도)** ⏳ | **v0.3-B 신규** |
 | TC-S04 | 2주택 2채 양도 + 시점 분산 (선택) | 6 | TYPE_3_TIMING | (검증팀 결정) ⏳ | v0.3-B 신규 (선택) |
+| **TC-S05** | **3주택 2채 양도 (조정 + 비조정 혼합)** ★ 본질 | **4** | **TYPE_2_ORDER** | **SC-2 (C→A) 또는 SC-4 (C→B)** ⏳ | **v0.3-B 신규 (본질)** |
+| **TC-S06** | **3주택 모두 양도 (양도 순서 6가지)** ★ 본질 | **6** | **TYPE_2_ORDER** | **SC-6 (C→B→A)** ⏳ | **v0.3-B 신규 (본질)** |
 
-⏳ = 검증 대기. 검증팀 손계산 + 본 명세서 §10-2~§10-5 산식 본문에 따라 산출 후 갱신.
+⏳ = 검증 대기. 검증팀 손계산 + 본 명세서 §10-2~§10-7 산식 본문에 따라 산출 후 갱신.
 
 ---
 

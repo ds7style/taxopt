@@ -996,6 +996,73 @@ function selectMetricKey(salePlan) {
 
 > **결과 화면 구현**: `result.html` v0.4 동적 렌더링 시 적용. 본 명세서는 표시 정책만 명시 (UI 구현 최종 결정은 v0.4 작업).
 
+### 6-6. effectiveTaxRate 정렬의 영역 한계 + issueFlag 보조 안내 (사용자 31~35번째 짚음 정정)
+
+#### 6-6-1. 본질 영역
+
+의사결정 #10 D안의 TYPE_1_WHICH_ONE 정렬 지표(`effectiveTaxRate` asc)는 양도가액 종속 회피 본질 가치 보존을 위한 정렬. 다만 다음 영역에서 **`effectiveTaxRate` rank ≠ `totalTax` rank** 가능:
+
+- 양도차익 격차가 작고 조정대상 자산에 다주택 중과(+20%p / +30%p) 적용되는 경우
+- 양도차익 작은 자산 + 중과 적용 → effectiveTaxRate 매우 높지만, totalTax 절대값은 작음
+- 사용자가 totalTax 기준으로 결정할 수도 있는 영역
+
+#### 6-6-2. 정렬 지표 변경 안 함 — 보조 안내 채택
+
+본 명세서는 `effectiveTaxRate` 정렬을 그대로 보존한다 (의사결정 #10 D안 본문 인용). 양도가액 종속 회피 본질 가치가 더 중요하기 때문. 다만 **사용자 결정 보조를 위해 issueFlag 안내**.
+
+#### 6-6-3. issueFlag 신규 — `EFFECTIVE_RATE_TOTAL_TAX_RANK_DIFFER`
+
+| issueFlag | 발동 조건 | 안내 본문 |
+|---|---|---|
+| `EFFECTIVE_RATE_TOTAL_TAX_RANK_DIFFER` | TYPE_1_WHICH_ONE에서 effectiveTaxRate rank 1 시나리오의 totalTax rank ≠ 1 | "본 추천은 실효세율(effectiveTaxRate) 기반. 총 납부세액(totalTax) 기준으로는 다른 시나리오가 우수. 양도하지 않은 자산의 미래 가치(1주택 비과세·가격·보유세·NPV)는 post-MVP 영역" |
+
+##### 발동 산식
+
+```js
+function detectEffectiveRateTotalTaxRankDiffer(scenarios) {
+  // TYPE_1_WHICH_ONE만 적용
+  if (scenarios[0].type !== "TYPE_1_WHICH_ONE") return null;
+  
+  // effectiveTaxRate rank 1
+  const recommendedScenarioId = scenarios[0].scenarioId;
+  
+  // totalTax rank 1 (별도 정렬)
+  const sortedByTotalTax = [...scenarios].sort(
+    (a, b) => a.metrics.totalTax - b.metrics.totalTax
+  );
+  const totalTaxRank1Id = sortedByTotalTax[0].scenarioId;
+  
+  // rank 다른 경우 issueFlag
+  if (recommendedScenarioId !== totalTaxRank1Id) {
+    return {
+      code: "EFFECTIVE_RATE_TOTAL_TAX_RANK_DIFFER",
+      severity: "info",
+      details: {
+        effectiveRateRank1: recommendedScenarioId,
+        totalTaxRank1: totalTaxRank1Id
+      }
+    };
+  }
+  return null;
+}
+```
+
+#### 6-6-4. 본질 가치 영역 분리
+
+| 영역 | 처리 |
+|---|---|
+| **MVP v0.3-B** | effectiveTaxRate 정렬 + issueFlag 보조 안내 |
+| **post-MVP B-028~B-031** | NPV 통합 + 양도 후순위 미루기 가치 통합 비교 |
+
+> **MVP 한계**: 양도 시점 단일 양도소득세 비교만 처리. 양도하지 않은 자산의 미래 보유 가치(1주택 비과세·가격·보유세·NPV)는 post-MVP 본질 가치 4영역(B-028·B-029·B-030·B-031).
+
+#### 6-6-5. 검증 케이스 (모듈 스펙·작업 창 #14 인계)
+
+다음 검증 케이스 모듈 스펙에서 추가:
+- 3주택자 1채 양도 (양도차익 격차 작은 + 중과 적용 자산 포함)
+- effectiveTaxRate rank ≠ totalTax rank 발동 검증
+- issueFlag `EFFECTIVE_RATE_TOTAL_TAX_RANK_DIFFER` 본문 확인
+
 ---
 
 ## 7. 결과 객체 구조 (`result.scenarios`)
@@ -1208,7 +1275,7 @@ tests/scenario_engine.test.js 신규 (작업 창 #14+ Claude Code 산출):
 
 v0.3-A의 issueFlag 카탈로그 25종은 **양도 1건당 발동**되며 v0.3-B에서도 그대로 보존된다. 본 명세서는 v0.3-A §6 카탈로그를 재정의하지 않고, **시나리오 레이어 신규 issueFlag 약 6종**만 명시.
 
-### 9-2. v0.3-B 시나리오 레이어 신규 issueFlag (약 6종)
+### 9-2. v0.3-B 시나리오 레이어 신규 issueFlag (약 6~11종)
 
 | # | code | severity | 발동 조건 | 메시지 (요약) |
 |---|---|---|---|---|
@@ -1222,8 +1289,9 @@ v0.3-A의 issueFlag 카탈로그 25종은 **양도 1건당 발동**되며 v0.3-B
 | 8 | `STATE_TRANSITION_BASIC_DEDUCTION_DEPLETED` | info | 동일 과세연도 2번째 양도부터 기본공제 250만원 미적용 | 동일 과세연도 내 2건 이상 양도로 기본공제가 한 번만 적용되었습니다 |
 | 9 | `SALEPLAN_VALIDATION_WARNING` | warning | `validateSalePlan`의 SP_W001~SP_W004 발동 시 | salePlan 검증 경고 (개별 코드는 메시지에 포함) |
 | 10 | `SCENARIO_TYPE_FALLBACK` | info | SCENARIO_METRIC_RULES fallback (TYPE_2_ORDER) 분기 진입 | 시나리오 타입이 기본값(TYPE_2_ORDER)으로 결정되었습니다 |
+| 11 | `EFFECTIVE_RATE_TOTAL_TAX_RANK_DIFFER` | info | TYPE_1_WHICH_ONE에서 `effectiveTaxRate` rank 1 시나리오의 `totalTax` rank ≠ 1 | 본 추천은 실효세율 기반. 총 납부세액 기준으로는 다른 시나리오 우수 (post-MVP 본질 가치 영역 미반영) |
 
-> **약 6~10종 중 정확한 채택 갯수는 모듈 스펙에서 결정**: 본 명세서는 발동 조건만 명시. 일부는 통합되거나 정밀화될 수 있음 (예: 9·10은 중복 정보로 간주 시 통합).
+> > **약 6~11종 중 정확한 채택 갯수는 모듈 스펙에서 결정**: 본 명세서는 발동 조건만 명시. 일부는 통합되거나 정밀화될 수 있음 (예: 9·10은 중복 정보로 간주 시 통합. 11은 effectiveTaxRate 정렬 영역 한계 보조 안내).
 
 ### 9-3. issueFlag 누적 정책 (`aggregateIssueFlags`)
 
@@ -1261,7 +1329,7 @@ v0.3-A의 issueFlag 카탈로그 25종은 **양도 1건당 발동**되며 v0.3-B
 | `generateSaleTargetCombinations` (§4-2) | `SCENARIO_NO_VALID_COMBINATION`, `SCENARIO_FIXED_SALE_FORCED` |
 | `generateScenarios` 후처리 (§4-5) | `SCENARIO_SINGLE_FIXED`, `SCENARIO_COUNT_EXCEEDS_THRESHOLD`, `SCENARIO_COUNT_HARD_LIMIT` |
 | `simulateScenarioWithStateTransition` (§5) | `STATE_TRANSITION_HOUSE_COUNT_REACHED_ONE`, `STATE_TRANSITION_BASIC_DEDUCTION_DEPLETED` |
-| `recommendBestScenario` (§6-4) | `SCENARIO_TIE_DETECTED`, `SCENARIO_TYPE_FALLBACK` |
+| `recommendBestScenario` (§6-4) | `SCENARIO_TIE_DETECTED`, `SCENARIO_TYPE_FALLBACK`, `EFFECTIVE_RATE_TOTAL_TAX_RANK_DIFFER` |
 
 ---
 

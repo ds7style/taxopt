@@ -291,6 +291,41 @@
 
 > 이 블록은 새 CSS 클래스를 만들지 않고 기존 `--blue`, `--gray-*`, `--red`, `--radius`, `.card`, `.card-header`, `.card-body`, `.form-grid`, `.form-group`, `.checkbox-group`, `.toggle-btn`, `.form-section-title`, `.form-divider`, `.warn-banner`, `.hint`, `.required`, `.field-error` 만 재사용합니다.
 
+### 1-4. v0.3-B 신규 — 양도 시기 입력 영역 (사용자 25번째 짚음 정정)
+
+#### 1-4-1. 신규 영역 개요
+
+v0.3-B에서 salePlan에 양도 시기 영역 3 필드 사전 설계 추가:
+
+| 필드 | UI 형태 | 비고 |
+|---|---|---|
+| `saleYearConstraint` | 라디오 버튼 (FIXED / DEADLINE / FLEXIBLE) | 양도 시기 제약 유형 |
+| `saleDeadlineYear` | 숫자 입력 (DEADLINE 시 활성) | 양도 기한 연도 |
+| `preferredSaleYearFrom` | 숫자 입력 (선택) | 선호 양도 시작 연도 |
+
+#### 1-4-2. v0.3-B 본격 활성 영역 vs v0.4·post-MVP 인계
+
+| 영역 | v0.3-B 본격 활성 | v0.4·post-MVP 인계 |
+|---|---|---|
+| 입력 스키마 + UI 사전 확정 | ✅ | — |
+| 시나리오 엔진 산식 본격 반영 | ⚠️ targetSaleYears만 활용 | v0.4 또는 post-MVP B-028~B-031 |
+| 사용자 deadline 자동 반영 시나리오 가드 | ❌ | v0.4 이후 |
+
+> **핵심**: v0.3-B는 인터페이스만 사전 설계. UI 카드는 ②.5 카드에 추가하되, 시나리오 엔진은 `targetSaleYears`만 활용. 다른 필드는 v0.4·post-MVP에서 본격 활성.
+
+#### 1-4-3. UI 카드 본문 (작업 창 신설 권고)
+
+본 명세서는 입력 스키마 사전 설계만 제공. ②.5 카드 HTML 블록의 양도 시기 입력 영역 본문은 **별도 작업 창에서 산출** (인덱스 카드 본문 + JS 이벤트 핸들러 + validateSalePlan 보강).
+
+#### 1-4-4. 본질 가치 영역과의 정합 (의사결정 #12 + B-028~B-031)
+
+| 본질 영역 | 양도 시기 활용 |
+|---|---|
+| B-028 (보유세 통합 처리) | `saleDeadlineYear` 이후 보유세 부담 종료 시점 결정 |
+| B-029 (가격 전망 통합) | `targetSaleYears`별 양도가액 변동 반영 |
+| B-030 (통합 NPV 비교) | `referenceYear` 기준 할인율 적용 |
+| B-031 (시나리오 지표 전환) | `saleYearConstraint`별 metricKey 분기 (예: NPV 통합 시) |
+
 ---
 
 ## 2. 산출물 B — salePlan JSON 스키마 확정안
@@ -306,6 +341,9 @@
 | `allowSystemToChooseSaleTargets` | `boolean` | `true`, `false` | `true` | 필수 | `false`이면 `fixedSaleHouseIds.length === targetSaleCount`이어야 의미 있음(검증 시 경고) |
 | `allowYearSplitting` | `boolean` | `true`, `false` | `false` | 필수 | `targetSaleCount === 1`이면 강제로 `false` |
 | `targetSaleYears` | `number[]` | `[2025]`, `[2026]`, … | `[caseData.baseYear]` | 필수 | `allowYearSplitting === false`이면 길이 1, `true`이면 길이 ≥ 2 권장 |
+| `saleYearConstraint` | `string` | `"FIXED"`, `"DEADLINE"`, `"FLEXIBLE"` | `"FIXED"` | 선택 | **v0.3-B 신규**. 양도 시기 제약 유형. v0.3-B 인터페이스만 사전 설계 (시나리오 엔진 산식 본격 활성은 v0.4·post-MVP) |
+| `saleDeadlineYear` | `number` | `caseData.baseYear` 이상 | `caseData.baseYear + 3` | 선택 | **v0.3-B 신규**. 양도 기한 연도. `saleYearConstraint === "DEADLINE"`일 때 필수. v0.3-B 인터페이스만 사전 설계 |
+| `preferredSaleYearFrom` | `number` | `caseData.baseYear` 이상 | `caseData.baseYear` | 선택 | **v0.3-B 신규**. 선호 양도 시작 연도. v0.3-B 인터페이스만 사전 설계 |
 
 ### 2-2. 검증 규칙 (validateSalePlan에서 처리할 항목 목록만 정의 — 구현은 별도 작업창)
 
@@ -317,6 +355,10 @@
 | `SP_W002` | `allowYearSplitting === true` AND `targetSaleYears.length < 2` | 경고 |
 | `SP_W003` | `targetSaleCount === 1` AND `allowYearSplitting === true` | 경고 (분산 양도 의미 없음) |
 | `SP_W004` | `candidateHouseIds.length - excludedHouseIds.length < targetSaleCount` (수치 targetSaleCount일 때) | 경고 (남은 후보 부족) |
+| `SP_E003` | `saleYearConstraint === "DEADLINE"` AND `saleDeadlineYear` 미지정 | 차단 (issueFlag severity=error) |
+| `SP_E004` | `preferredSaleYearFrom > saleDeadlineYear` | 차단 |
+| `SP_W005` | `saleYearConstraint === "FLEXIBLE"` AND `targetSaleYears.length < 2` | 경고 (유연 제약 시 후보 연도 비교 권고) |
+| `SP_W006` | `saleDeadlineYear < caseData.baseYear` | 경고 (과거 연도) |
 
 ### 2-3. PRD 8-5절 7가지 양도 계획 입력 항목과의 매핑 확인
 
@@ -327,7 +369,7 @@
 | ③ 매도 대상 주택이 이미 정해져 있는지 | `allowSystemToChooseSaleTargets` |
 | ④ 반드시 팔아야 하는 주택 | `fixedSaleHouseIds` |
 | ⑤ 반드시 보유해야 하는 주택 | `excludedHouseIds` |
-| ⑥ 양도 시점이 고정되어 있는지 | `targetSaleYears` (길이 1=고정, 길이 ≥ 2=비교) |
+| ⑥ 양도 시점이 고정되어 있는지 | `saleYearConstraint` (`"FIXED"`/`"DEADLINE"`/`"FLEXIBLE"`) + `saleDeadlineYear` + `preferredSaleYearFrom` + `targetSaleYears` |
 | ⑦ 과세연도 분산 허용 여부 | `allowYearSplitting` |
 
 ✅ 7개 항목 모두 매핑됨.
@@ -344,6 +386,10 @@
   allowSystemToChooseSaleTargets: true,
   allowYearSplitting: false,
   targetSaleYears: [2026]
+  // v0.3-B 신규 필드 (인터페이스 사전 설계)
+  saleYearConstraint: "FIXED",
+  saleDeadlineYear: 2026,
+  preferredSaleYearFrom: 2026
 }
 
 // 예 2) 보유 3채, 2채 양도, A는 반드시 보유, 양도 시점 비교 허용
@@ -355,6 +401,10 @@
   allowSystemToChooseSaleTargets: true,
   allowYearSplitting: true,
   targetSaleYears: [2026, 2027]
+  // v0.3-B 신규 필드 (인터페이스 사전 설계)
+  saleYearConstraint: "FLEXIBLE",
+  saleDeadlineYear: 2027,
+  preferredSaleYearFrom: 2026
 }
 
 // 예 3) 매도 대상 확정 (B 매도 결정)
@@ -366,7 +416,27 @@
   allowSystemToChooseSaleTargets: false,
   allowYearSplitting: false,
   targetSaleYears: [2026]
+  // v0.3-B 신규 필드 (인터페이스 사전 설계)
+  saleYearConstraint: "FIXED",
+  saleDeadlineYear: 2026,
+  preferredSaleYearFrom: 2026
 }
+
+// 예 4) 보유 3채, 2채 양도 (DEADLINE 제약 — v0.3-B 신규)
+{
+  targetSaleCount: 2,
+  candidateHouseIds: ["A","B","C"],
+  fixedSaleHouseIds: ["C"],          // C 양도 확정
+  excludedHouseIds: [],
+  allowSystemToChooseSaleTargets: true,
+  allowYearSplitting: false,
+  targetSaleYears: [2026],
+  // v0.3-B 신규 필드 (DEADLINE 제약 사례)
+  saleYearConstraint: "DEADLINE",
+  saleDeadlineYear: 2028,             // 2028년 말까지 양도 필수
+  preferredSaleYearFrom: 2026         // 2026년부터 양도 가능
+}
+
 ```
 
 ---

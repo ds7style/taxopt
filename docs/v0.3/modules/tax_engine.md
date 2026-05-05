@@ -1,34 +1,87 @@
-# tax_engine.js 모듈 스펙 v0.3-A
+# tax_engine.js 모듈 스펙 v0.3-B
 
 | 항목 | 내용 |
 |---|---|
 | 문서 ID | `docs/v0.3/modules/tax_engine.md` |
-| 버전 | v0.3-A (다주택 중과 + saleRegulated 활성, 시나리오 엔진 미포함) |
-| 상태 | 작성 완료 (2026-05-02, 작업 창 #11) |
-| 작성 출처 | 작업 창 #11 (v0.3-A 모듈 스펙 — tax_rules.md + tax_engine.md 통합 갱신) |
-| 대상 코드 | `js/tax_engine.js` (Claude Code 산출, v0.2.0 → v0.3-A 패치, 본 모듈 스펙은 .js 본문 산출 금지 — 의사결정 #9 v9) |
-| 대상 테스트 | `tests/tax_engine.test.js` (Claude Code 산출, v0.2.0 → v0.3-A 패치) |
-| 관련 작업지시서 | `docs/05_code_work_orders/06_tax_engine_v0_3_a.md` (작업 창 #12 산출 예정) |
-| 관련 명세서 | `docs/v0.3/01_calc_engine_spec.md` v0.3-A (✅ 검증 통과, KPI 100%, 2026-05-02) |
-| 관련 입력 스키마 | `docs/v0.3/03_input_schema.md` v0.3-A (saleRegulated 활성 명시) |
-| 관련 골든셋 | `docs/v0.3/06_test_cases.md` v0.3-A (TC-006~010 v0.2 회귀 + TC-011~014 v0.3-A 신규, 검증 후 갱신) |
-| 의존 모듈 스펙 | `docs/v0.3/modules/tax_rules.md` v0.3-A (**`HEAVY_TAX_RATE_ADDITION` 룩업 + `findHeavyTaxRateAddition` 헬퍼 정본** — §0-1, 본 작업 창 동시 산출) |
-| 이전 버전 | v0.2.1 (`docs/v0.2/modules/tax_engine.md`, 5/2 KPI 100% 검증 통과, 회귀 534/0) |
-| 다음 버전 | v0.3-B (시나리오 엔진 도입 시 갱신), post-MVP (시행령 제167조의10·11 단서 본격 처리) |
-| 관련 의사결정 | `docs/99_decision_log.md` #1 (중과 유예 처리), #5 강화 (법령 개정 대응 아키텍처 — §0-1), #6 (영속화 의무), #9 v9 (.js 본문 산출 금지), #10 (시나리오 엔진은 v0.3-B), #11 (정확성 > 속도), #12 (모듈 스펙 v0.3-A 정본화) |
-| 관련 백로그 | B-008 (effectiveTaxRate, v0.1 처리), B-009 (1세대1주택 비과세, v0.2 처리), B-019 (자동 보정 룰 — `householdHouseCount`·`residenceMonths` 등, §8-3), B-020 (의사결정 #5 강화 — 명세서 §0-1), B-021 (법제처 OpenAPI 활용 검토), B-022 (양도소득세 정수 처리, v0.3-A 무영향), B-023 (양도소득세 부칙·경과규정 — 강남3구·용산 한시 유예 미처리, §6-A), B-024 (일시적 2주택 — v0.3-A 미포함, 명세서 §1-4), B-032 (결과 객체 구조 명세 vs 코드 불일치 — **v0.3-A 범위 외, v0.2.1 그대로**), B-033 (자동 조정대상지역 판정 — post-MVP 인계, B-021 통합) |
+| 버전 | v0.3-B (다주택 중과 + saleRegulated 활성 + **확정신고 v3 산식 5단계 신규** §5-7) |
+| 상태 | 작성 완료 (2026-05-05, 작업 창 #15) |
+| 작성 출처 | 작업 창 #15 (v0.3-B 모듈 스펙 합본 산출 — `tax_rules.md` + `tax_engine.md` v0.3-B 통합) |
+| 대상 코드 | `js/tax_engine.js` (Claude Code 산출, v0.3-A → v0.3-B 패치, 본 모듈 스펙은 .js 본문 산출 금지 — 의사결정 #9 v9) |
+| 대상 테스트 | `tests/tax_engine.test.js` (Claude Code 산출, v0.3-A → v0.3-B 패치 — `ENGINE_VERSION` strict-eq 1라인 갱신 + v0.3-B 신규 회귀 그룹) |
+| 관련 작업지시서 | `docs/05_code_work_orders/v0_3_B/` (작업 창 #16 산출 예정 — 의사결정 #9 v9) |
+| 관련 명세서 | `docs/v0.3/02_calc_engine_spec.md` v0.3-B (시나리오 엔진 + 상태전이 + 확정신고 v3 산식 §5-7, ⏳ 검증 대기) |
+| 관련 입력 스키마 | `docs/v0.3/03_input_schema.md` v0.3-A (saleRegulated 활성 명시 — v0.3-B 변경 0건) |
+| 관련 골든셋 | `docs/v0.3/06_test_cases.md` v0.3-B (TC-001~014 v0.3-A 회귀 + TC-S01~S07 v0.3-B 신규, 검증 후 갱신 예정) |
+| 의존 모듈 스펙 | `docs/v0.3/modules/tax_rules.md` v0.3-B (**`HEAVY_TAX_RATE_ADDITION` + `findHeavyTaxRateAddition` v0.3-A 그대로 + `LAW_REFS.finalReturnAggregation` v0.3-B 신규 1키** — 본 작업 창 동시 산출 Part 1) |
+| 이전 버전 | v0.3-A (`docs/v0.3/modules/tax_engine.md` 733줄, 5/2 KPI 100% 검증 통과, 회귀 534/0 + TC-011~014 추가) |
+| 다음 버전 | post-MVP (시행령 제167조의10·11 단서 정확 처리·자동 조정대상지역 판정·본질 가치 4영역 B-028~B-031) |
+| 관련 의사결정 | `docs/99_decision_log.md` #1 (중과 유예 처리), #5 강화 (법령 개정 대응 아키텍처 — §0-1), #6 (영속화 의무), #9 v9 (.js 본문 산출 금지), #10 D안 (시나리오 비교 정렬 — `scenario_engine.js` 책임), #11 (정확성 > 속도), #12 (모듈 스펙 v0.3-A 정본화), **#13 (확정신고 v3 산식 — 법 제104조 ⑤ 정확본, 본 v0.3-B §5-7 신규)** |
+| 관련 백로그 | B-008 (effectiveTaxRate, v0.1 처리), B-009 (1세대1주택 비과세, v0.2 처리), B-019 (자동 보정 룰 — `householdHouseCount`·`residenceMonths` 등, §8-3), B-020 (의사결정 #5 강화), B-021 (법제처 OpenAPI 활용 검토), B-022 (양도소득세 정수 처리, v0.3-B 무영향 — §5-7 영역의 `getRateGroupKey` 정수 키는 부동소수점 회피용), B-023 (양도소득세 부칙·경과규정), B-024 (일시적 2주택 — v0.3-B 미포함, post-MVP 인계), B-028~B-031 (본질 가치 4영역 — post-MVP 인계), B-032 (결과 객체 구조 명세 vs 코드 — **v0.3-B 범위 외, v0.2.1·v0.3-A 그대로 계승**), B-033 (자동 조정대상지역 판정 — post-MVP 인계, B-021 통합) |
 
 ---
 
 ## 0. 문서 위치·역할
 
-본 문서는 `js/tax_engine.js`의 **계약 문서 v0.3-A판**입니다. v0.2.1 모듈 스펙(459줄)을 베이스로 하여, v0.3-A 명세서가 활성화한 **단계 4 변경(중과 시 장특공 배제) + 단계 9 변경(중과 시 누진세율 + 가산세율 동적 재계산) + 보유 < 2년 + 중과 max 비교** 의 계약을 추가합니다.
+본 문서는 `js/tax_engine.js`의 **계약 문서 v0.3-B판**입니다. v0.3-A 모듈 스펙(733줄)을 베이스로 하여, v0.3-B 명세서가 활성화한 **확정신고 v3 산식 5단계 (법 제104조 ⑤ 정확본 — 의사결정 #13)** 의 계약을 추가합니다. v0.3-A의 13단계 단일 양도 파이프라인은 **그대로 보존**됩니다.
 
-코드 본문(`js/tax_engine.js`)과 본 문서가 충돌하면 **본 문서를 우선**합니다. 본 문서를 변경해야 하는 경우는 v0.3-A 명세서가 변경된 경우뿐이며, 그때는 명세서 → 본 문서 → 코드 순으로 갱신합니다.
+코드 본문(`js/tax_engine.js`)과 본 문서가 충돌하면 **본 문서를 우선**합니다. 본 문서를 변경해야 하는 경우는 v0.3-B 명세서가 변경된 경우뿐이며, 그때는 명세서 → 본 문서 → 코드 순으로 갱신합니다.
 
-본 문서는 **명세서 v0.3-A의 13단계 산식 + §3 다주택 중과 판정 메커니즘을 그대로 코드 계약으로 옮긴 것**입니다. 산식·상수·issueFlag 발동 조건은 모두 명세서 §2~§9를 단일 정본으로 합니다. 본 문서가 명세서와 충돌하면 명세서가 우선합니다.
+본 문서는 **명세서 v0.3-B의 13단계 산식 + §3 다주택 중과 판정 + §5-7 확정신고 v3 산식 5단계를 그대로 코드 계약으로 옮긴 것**입니다. 산식·상수·issueFlag 발동 조건은 모두 명세서 §2~§9를 단일 정본으로 합니다. 본 문서가 명세서와 충돌하면 명세서가 우선합니다.
 
-### 0-1. v0.2.1 → v0.3-A 변경 요약
+### 0-1. v0.3-A → v0.3-B 변경 요약
+
+본 모듈 스펙 v0.3-B는 **v0.3-A 본문 §0~§부록을 모두 그대로 계승**하면서, **확정신고 v3 산식 5단계** 영역만 신규 추가합니다 (사용자 결정 옵션 (A) 채택 — 산식 본문 engine 측 단일 책임). v0.3-A의 21종 노출 멤버 시그니처·반환 형식은 모두 그대로 보존되며, v0.1·v0.2·v0.3-A 회귀 (TC-001~014 14건) 모두 그대로 통과해야 합니다.
+
+| 영역 | v0.3-A | v0.3-B |
+|---|---|---|
+| 노출 멤버 | 21종 (v0.2 20 + v0.3-A 신규 1) | **23종** (v0.3-A 21 + v0.3-B 신규 2 — `findProgressiveTaxAmount` + `findHeavyProgressiveTaxAmount` 공개 노출) |
+| **§5-7 확정신고 v3 산식 (신규)** | (해당 없음) | **신규 5단계 본문**: (1) `groupByTaxYear` (2) `calculateClause1AggregateProgressive` (1호 합산 누진) (3) `calculateClause2PerTransferWithDanSeo` (2호 단독 합계 + 단서) (4) `applyFinalReturnV3` (MAX(1호, 2호) 채택 + selection) (5) `distributeFinalTaxByShare` (양도별 비례 분배) |
+| `result.steps` 필드 | v0.2 23종 + v0.3-A 신규 4종 = 27종 | + **v0.3-B 신규 4종** (`saleYear`·`finalCalculatedTax`·`finalReturnMethod`·`finalReturnDiff`) = **31종** |
+| issueFlag | 활성 25종 (v0.2 18 + v0.3-A 순증 7) | **활성 27종** (v0.3-A 25 + v0.3-B 신규 2 — `FINAL_RETURN_AGGREGATE_PROGRESSIVE_APPLIED` + `FINAL_RETURN_DAN_SEO_APPLIED`) |
+| `tax_rules.js` 의존 | 26종 노출 멤버 중 19종 사용 | **26종 노출 멤버 그대로 + `LAW_REFS.finalReturnAggregation` v0.3-B 신규 1키 추가 사용** = 20종 사용 |
+| 부트스트랩 가드 | v0.1 1건 + v0.2 1건 + v0.3-A 1건 (가드 2-A) | + **v0.3-B 가드 추가 없음** (확정신고 v3 산식은 engine 모듈 내부 신규 함수 — 의존성 변동 0건) |
+| `ENGINE_VERSION` | `"v0.3.0-A"` | **`"v0.3.0-B"`** (의사결정 #13) |
+| 13단계 단일 양도 파이프라인 | v0.2.1 본문 + v0.3-A 단계 4·9 변경 | **그대로 보존** (변경 0건 — 양도 1건당 산식은 v0.3-A 그대로) |
+| 호출 위치 (확정신고 v3 산식) | (해당 없음) | **신규** — `simulateScenarioWithStateTransition`(시나리오 엔진 측 — 작업 창 #14+ 인계) 끝부분에서 `applyFinalReturnV3` + `distributeFinalTaxByShare` 호출 |
+
+> **인터페이스 약속 (가장 중요)**: v0.3-A의 21종 노출 멤버는 모두 시그니처·반환 형식 그대로 유지. v0.3-B 패치는 **순수 추가**(addition-only)이며 v0.3-A·v0.2·v0.1 회귀 (TC-001~014 14건)를 깨지 않는다. **`tax_engine.js` v0.3-B 코드 변경 라인은 약 +250~+350 라인** (확정신고 v3 산식 5단계 + 누진 산출 헬퍼 공개 노출 + `result.steps` 신규 4종 채움 + issueFlag 신규 2종 + `ENGINE_VERSION` 1라인).
+
+### 0-2. v0.3-A 회귀 안전성 (절대 깨지면 안 됨)
+
+| 영역 | v0.3-B 동작 |
+|---|---|
+| TC-001~014 14건 totalTax | v0.3-A 정답값 100% 일치 (`applyFinalReturnV3`의 `length === 1` → `SINGLE_TRANSFER` 분기로 calculatedTax 그대로 — 의사결정 #13 회귀 안전성 영역) |
+| v0.3-A 21종 노출 멤버 시그니처·반환 형식 | 변경 0건 (`ENGINE_VERSION` 1라인만 예외) |
+| v0.3-A `result.steps` 27종 | 그대로 보존 (v0.3-B 신규 4종 추가) |
+| v0.3-A issueFlag 25종 | 그대로 보존 (v0.3-B 신규 2종 추가 — 발동 조건 상호 배타) |
+| v0.3-A 단계 4·9 본문 (다주택 중과 분기) | 변경 0건 — 양도 1건당 calculatedTax 산출은 v0.3-A 그대로 |
+| `simulateScenarioWithStateTransition` 호출 위치 | scenario_engine.js (작업 창 #14+ 인계) — 본 모듈 스펙은 호출 측 책임 명시만 |
+
+> **회귀 깨지면 즉시 롤백**: 본 모듈 스펙이 정의한 v0.3-B 영역이 v0.3-A 결과를 보존하지 못하면 v0.3-B 마이그레이션 실패. 의사결정 #11 (정확성 > 속도) 적용.
+
+### 0-3. 본 모듈 스펙이 처리하지 않는 영역 (v0.3-B 범위 외)
+
+v0.3-A에서 위임된 영역은 **그대로 위임**. v0.3-B 신규 위임 영역 추가:
+
+| 영역 | 처리 시점 |
+|---|---|
+| **(v0.3-A 그대로) B-032 결과 객체 구조 명세 vs 코드 불일치** | **v0.3-B 범위 외**. v0.3-A·v0.2.1 패턴 그대로 따름. post-MVP 처리 |
+| **(v0.3-A 그대로) 자동 조정대상지역 판정 (B-033)** | post-MVP (B-021 통합) |
+| **(v0.3-A 그대로) 일시적 2주택 특례 (B-024)** | post-MVP (명세서 §1-4 옵션 (나) 미포함 채택 그대로) |
+| **(v0.3-A 그대로) 시행령 제167조의10·11 단서** (중과 배제 사유, 인계 4) | post-MVP (issueFlag `HEAVY_TAX_EXCLUSION_NOT_HANDLED` info로 v0.3-B 표시) |
+| **(v0.3-A 그대로) 강남3구·용산 한시 유예** (B-023) | post-MVP (issueFlag `HEAVY_TAX_TRANSITION_NOT_HANDLED` info, 입력 필드 `contractDate` 부재로 실 발동 빈도 0) |
+| **(v0.3-B 신규) 시나리오 엔진** (`scenario_engine.js`) — 매도 대상 조합·양도 순서·양도 시점 시나리오 생성 + `simulateScenarioWithStateTransition` 호출 위치 | 작업 창 #14+ 인계 (scenario_engine.md v0.3-B 신규 작성). 본 모듈 스펙은 §5-7 산식 5단계 본문만 단일 책임 |
+| **(v0.3-B 신규) 본질 가치 4영역** (B-028~B-031) | post-MVP P1·P2 (보유세·가격 전망·NPV·시나리오 지표 전환) |
+
+> **인계 1 (B-032) 명시 결정**: v0.3-A 본문 그대로 — 본 모듈 스펙 §4-1·§4-2의 결과 객체 구조 표기는 v0.2.1·v0.3-A 모듈 스펙 패턴 그대로 계승한다. 실제 코드(e36cb68)는 `result.metrics.totalTax` + `result.steps.totalTax` 캡슐화 구조이나, post-MVP 단계에서 별도 정정. v0.3-B는 명세 vs 코드 불일치를 인지하되 본 작업 범위 외로 처리.
+
+> **인계 (시나리오 엔진) 명시**: 사용자 결정 옵션 (A) 채택 — `tax_engine.md` v0.3-B는 **§5-7 확정신고 v3 산식 5단계 본문**만 단일 책임. 산식 5단계 함수의 **호출 위치**(`simulateScenarioWithStateTransition` 끝부분)는 시나리오 엔진 모듈 스펙(`scenario_engine.md` v0.3-B, 작업 창 #14+ 인계) 책임. 본 모듈 스펙은 호출 측 약속만 명시.
+
+---
+
+### 0-A. v0.2.1 → v0.3-A 변경 요약 (v0.3-A 본문 인용 — 회귀 안전성 정본)
+
+본 §0-A는 v0.3-A 모듈 스펙 §0-1의 본문을 그대로 인용한다. v0.3-B 회귀 안전성 영역은 본 §0-A의 v0.3-A 보존 영역이 그대로 보존된다는 점에 의존한다.
 
 | 영역 | v0.2.1 | v0.3-A |
 |---|---|---|
@@ -42,18 +95,7 @@
 | 부트스트랩 가드 | v0.1 1건 + v0.2 추가 1건 | **+ v0.3-A 추가 1건** (가드 2-A — `findHeavyTaxRateAddition` 미로드 차단) |
 | 입력 스키마 | `saleRegulated` 보존 (산식 미사용) | **`saleRegulated` 활성** (다주택 중과 판정용 — 단계 4 진입 직전) |
 
-### 0-2. 본 모듈 스펙이 처리하지 않는 영역 (v0.3-A 범위 외)
-
-| 영역 | 처리 시점 |
-|---|---|
-| **B-032 결과 객체 구조 명세 vs 코드 불일치** (인계 1) | **v0.3-A 범위 외**. 5/6 PRD 또는 v0.3-B 진입 시점에 별도 처리. **본 모듈 스펙은 v0.2.1 명세 패턴 그대로 따른다** (§4-1 톱레벨 + §4-2 result.steps 표기 그대로 유지) |
-| 시나리오 엔진 (어느 1채·순서·시점 비교) | v0.3-B (별도 작업 창) |
-| 자동 조정대상지역 판정 (B-033) | post-MVP (B-021 통합) |
-| 일시적 2주택 특례 (B-024) | v0.3-B 또는 post-MVP (명세서 §1-4 옵션 (나) 미포함 채택) |
-| 시행령 제167조의10·11 단서 (중과 배제 사유, 인계 4) | post-MVP (issueFlag `HEAVY_TAX_EXCLUSION_NOT_HANDLED` info로 v0.3-A 표시) |
-| 강남3구·용산 한시 유예 (계약 2026-05-09 이전 + 잔금 4개월 이내, B-023) | post-MVP (issueFlag `HEAVY_TAX_TRANSITION_NOT_HANDLED` info, 입력 필드 `contractDate` 부재로 실 발동 빈도 0) |
-
-> **인계 1 (B-032) 명시 결정**: 본 모듈 스펙 §4-1·§4-2의 결과 객체 구조 표기는 v0.2.1 모듈 스펙 패턴 그대로 계승한다. 실제 코드(e36cb68)는 `result.metrics.totalTax` + `result.steps.totalTax` 캡슐화 구조이나, 이는 5/6 PRD 또는 v0.3-B 진입 시점에 별도 정정. v0.3-A는 명세 vs 코드 불일치를 인지하되 본 작업 범위 외로 처리.
+> **v0.3-A 인터페이스 약속**: v0.2.1의 20종 노출 멤버는 모두 시그니처 그대로 유지. v0.3-A 패치는 단계 4·9 본문 변경 + 1종 신규 노출 (`isHeavyTaxationApplicable`)이며 v0.2 또는 v0.1 회귀를 깨지 않는다.
 
 ---
 
@@ -69,39 +111,47 @@ ES6 module(`import`/`export`)을 사용하지 않습니다(decision_log #5). 비
 
 ---
 
-## 2. 노출 멤버 (전체, v0.3-A)
+## 2. 노출 멤버 (전체, v0.3-B)
 
-> v0.2.1 노출 20종은 **모두 시그니처 유지**한다. v0.3-A 신규는 별도 표기.
+> v0.2.1 노출 20종 + v0.3-A 신규 1종 = 21종은 **모두 시그니처·반환 형식 그대로 유지**한다. v0.3-B 신규 2종은 별도 표기.
 
-| 멤버 | 타입 | 역할 | v0.3-A 변경 |
-|---|---|---|---|
-| `ENGINE_VERSION` | string | 결과 객체에 기록할 엔진 버전 식별자 | **`"v0.3.0-A"`로 갱신** (Claude Code 결정 권장) |
-| `calculateSingleTransfer(caseData, houseId?)` | function | 메인 진입점, 13단계 통합 실행 | 단계 4·9 본문 변경 (중과 분기 추가) |
-| `validateCaseData(caseData)` | function | 입력 검증 (0단계) | 동일 (saleRegulated 기존 검증 유지, 신규 검증 항목 없음) |
-| `computeTransferGain(input)` | function | 1단계 양도차익 | 동일 |
-| `applyNonTaxation(transferGain, caseData)` | function | 2단계 비과세 | 동일 (v0.2.1 활성 본문 그대로) |
-| `applyHighValueAllocation(taxableGain, caseData)` | function | 3단계 고가주택 안분 | 동일 (v0.2.1 활성 본문 그대로) |
-| `computeLongTermDeduction(taxableGain, caseData)` | function | 4단계 장특공 | **본문 변경**: 중과 발동 시 `longTermDeduction = 0` (§5-A-4) |
-| `computeCapitalGainIncome(taxableGain, longTermDeduction)` | function | 5단계 양도소득금액 | 동일 |
-| `computeBasicDeduction(basicDeductionUsed)` | function | 6단계 기본공제 | 동일 |
-| `computeTaxBase(capitalGainIncome, basicDeduction)` | function | 7단계 과세표준 | 동일 |
-| `determineHoldingPeriodBranch(acquisitionDate, saleDate)` | function | 8단계 보유기간 분기 | 동일 (분기 자체 불변) |
-| `determineAppliedRate(branch, taxBase)` | function | 9단계 적용 세율 결정 | **본문 변경**: 중과 시 누진세율 + 가산세율 합산 (§5-A-9) |
-| `computeCalculatedTax(taxBase, appliedRate)` | function | 10단계 산출세액 | **본문 변경**: 중과 시 동적 재계산 (§5-A-9-1), 보유 < 2년 + 중과 시 max 비교 (§5-A-9-2) |
-| `computeLocalIncomeTax(calculatedTax)` | function | 11단계 지방소득세 | 동일 (중과 후 calculatedTax에 적용) |
-| `computeTotalTax(calculatedTax, localIncomeTax)` | function | 12단계 총 납부세액 | 동일 |
-| `computeNetAfterTaxSaleAmount(salePrice, totalTax)` | function | 13단계 세후 매각금액 | 동일 |
-| `computeEffectiveTaxRate(totalTax, salePrice)` | function | metrics 보강 (B-008) | 동일 |
-| `collectIssueFlags(caseData, intermediates)` | function | issueFlag 수집 | **활성 25종으로 확장** (§6-A) |
-| `selfTest()` | function | 부트스트랩 종합 자체검증 | TC-011·012 sanity 추가 권장 (§6-1-A) |
-| `check1Se1HouseExemption(input)` | function | 1세대1주택 비과세 판단 (v0.2 신규) | 동일 |
-| `calculateHighValuePortion(input)` | function | 고가주택 안분 산식 (v0.2 신규) | 동일 |
-| `calculateLongTermDeduction(input)` | function | 장특공 표 1·2 산출 분기 (v0.2 신규) | **본문 변경**: 중과 발동 시 진입하지 않음 (상위 분기에서 차단, §5-A-4) |
-| **`isHeavyTaxationApplicable(caseData, intermediates)`** (v0.3-A) | function | **(신규 권장)** 다주택 중과 4단계 조건 평가 | **v0.3-A 신규** (§5-5) |
+| 멤버 | 타입 | 역할 | v0.3-A 변경 | **v0.3-B 변경** |
+|---|---|---|---|---|
+| `ENGINE_VERSION` | string | 결과 객체에 기록할 엔진 버전 식별자 | `"v0.3.0-A"`로 갱신 | **`"v0.3.0-B"`로 갱신** (의사결정 #13) |
+| `calculateSingleTransfer(caseData, houseId?)` | function | 메인 진입점, 13단계 통합 실행 | 단계 4·9 본문 변경 (중과 분기 추가) | **그대로** (양도 1건당 산식은 v0.3-A 그대로 — 회귀 안전성) |
+| `validateCaseData(caseData)` | function | 입력 검증 (0단계) | 동일 (saleRegulated 기존 검증 유지) | 동일 |
+| `computeTransferGain(input)` | function | 1단계 양도차익 | 동일 | 동일 |
+| `applyNonTaxation(transferGain, caseData)` | function | 2단계 비과세 | 동일 | 동일 |
+| `applyHighValueAllocation(taxableGain, caseData)` | function | 3단계 고가주택 안분 | 동일 | 동일 |
+| `computeLongTermDeduction(taxableGain, caseData)` | function | 4단계 장특공 | **본문 변경**: 중과 발동 시 `longTermDeduction = 0` (§5-A-4) | 동일 (v0.3-A 그대로) |
+| `computeCapitalGainIncome(taxableGain, longTermDeduction)` | function | 5단계 양도소득금액 | 동일 | 동일 |
+| `computeBasicDeduction(basicDeductionUsed)` | function | 6단계 기본공제 | 동일 | 동일 |
+| `computeTaxBase(capitalGainIncome, basicDeduction)` | function | 7단계 과세표준 | 동일 | 동일 |
+| `determineHoldingPeriodBranch(acquisitionDate, saleDate)` | function | 8단계 보유기간 분기 | 동일 (분기 자체 불변) | 동일 |
+| `determineAppliedRate(branch, taxBase)` | function | 9단계 적용 세율 결정 | **본문 변경**: 중과 시 누진세율 + 가산세율 합산 (§5-A-9) | 동일 |
+| `computeCalculatedTax(taxBase, appliedRate)` | function | 10단계 산출세액 | **본문 변경**: 중과 시 동적 재계산 (§5-A-9-1), 보유 < 2년 + 중과 시 max 비교 (§5-A-9-2) | 동일 |
+| `computeLocalIncomeTax(calculatedTax)` | function | 11단계 지방소득세 | 동일 (중과 후 calculatedTax에 적용) | 동일 |
+| `computeTotalTax(calculatedTax, localIncomeTax)` | function | 12단계 총 납부세액 | 동일 | 동일 |
+| `computeNetAfterTaxSaleAmount(salePrice, totalTax)` | function | 13단계 세후 매각금액 | 동일 | 동일 |
+| `computeEffectiveTaxRate(totalTax, salePrice)` | function | metrics 보강 (B-008) | 동일 | 동일 |
+| `collectIssueFlags(caseData, intermediates)` | function | issueFlag 수집 | 활성 25종으로 확장 (§6-A) | **활성 27종으로 확장** (§6-A 신규 2종 — `FINAL_RETURN_AGGREGATE_PROGRESSIVE_APPLIED` + `FINAL_RETURN_DAN_SEO_APPLIED`) |
+| `selfTest()` | function | 부트스트랩 종합 자체검증 | TC-011·012 sanity 추가 권장 (§6-1-A) | **v0.3-B 신규 함수 sanity 추가 권장** (§6-1-B — `applyFinalReturnV3` 단일 양도 분기 sanity 1건 + `findProgressiveTaxAmount` sanity 1건) |
+| `check1Se1HouseExemption(input)` | function | 1세대1주택 비과세 판단 (v0.2 신규) | 동일 | 동일 |
+| `calculateHighValuePortion(input)` | function | 고가주택 안분 산식 (v0.2 신규) | 동일 | 동일 |
+| `calculateLongTermDeduction(input)` | function | 장특공 표 1·2 산출 분기 (v0.2 신규) | **본문 변경**: 중과 발동 시 진입하지 않음 (상위 분기에서 차단, §5-A-4) | 동일 |
+| `isHeavyTaxationApplicable(caseData, intermediates)` (v0.3-A) | function | 다주택 중과 4단계 조건 평가 (v0.3-A 신규) | v0.3-A 신규 (§5-5) | 동일 |
+| **`findProgressiveTaxAmount(taxBase)`** (v0.3-B) | function | **(신규 노출)** 누진 산출세액 (제55조 ① 일반 누진세율 1회 적용) | — | **v0.3-B 신규** (§5-7-3 2단계 — 1호 합산 누진 산식 영역에서 호출) |
+| **`findHeavyProgressiveTaxAmount(taxBase, addition)`** (v0.3-B) | function | **(신규 노출)** 누진 산출세액 + 가산세율 동적 재계산 (제104조 ⑦ 본문 단서) | — | **v0.3-B 신규** (§5-7-3 3단계 — 2호 단서 동일 호 세율 자산 합산 산식 영역에서 호출) |
 
-> **노출 원칙**: v0.1·v0.2와 동일. 13단계 각 함수와 v0.2 신규 보조 함수 3종 + v0.3-A 신규 보조 함수 1종을 모두 노출하는 이유는 (1) 회귀 테스트가 단계별 중간값을 검증해야 하고, (2) v0.3-B 시나리오 엔진이 일부 단계만 재사용할 수 있어야 하기 때문. 노출은 **읽기 전용 사용**을 전제로 한다 (불변성 약속, §7).
+> **노출 원칙**: v0.1·v0.2·v0.3-A와 동일. 13단계 각 함수 + v0.2 신규 보조 3종 + v0.3-A 신규 보조 1종 + **v0.3-B 신규 노출 2종**을 모두 노출하는 이유는 (1) 회귀 테스트가 단계별 중간값을 검증해야 하고, (2) **v0.3-B 신규 산식 5단계 (§5-7)** 가 `findProgressiveTaxAmount` + `findHeavyProgressiveTaxAmount`를 호출하므로 공개 노출 필요. 노출은 **읽기 전용 사용**을 전제로 한다 (불변성 약속, §7).
 
-> **v0.3-A `isHeavyTaxationApplicable` 노출 권장 사유**: 단계 4·9 양쪽에서 호출되는 **4단계 조건 평가 함수**. 내부 함수로만 두면 (a) 회귀 테스트가 4단계 조건 단독 검증 불가, (b) v0.3-B 시나리오 엔진이 시나리오별 중과 발동 여부 판정 불가. 따라서 v0.2 신규 보조 함수 3종(`check1Se1HouseExemption` 등)과 동일 패턴으로 노출 권장.
+> **v0.3-B `findProgressiveTaxAmount` + `findHeavyProgressiveTaxAmount` 공개 노출 사유** (사용자 결정 옵션 (A) 채택 본문):
+> - **`findProgressiveTaxAmount`**: §5-7-3 2단계 `calculateClause1AggregateProgressive` 영역에서 모든 자산 과세표준 합산 후 호출 (제55조 ① 일반 누진세율 1회 적용 — 가산세율 미적용).
+> - **`findHeavyProgressiveTaxAmount`**: §5-7-3 3단계 `calculateClause2PerTransferWithDanSeo` 영역의 단서 발동 분기에서 호출 (동일 호 세율 자산 ≥ 2 합산 → 호별 세율 적용 → 누진 산출세액 + 가산세율 동적 재계산).
+> - 두 함수는 v0.3-A에서 단계 9 내부 함수로 호출되었으나 노출되지 않았음. v0.3-B에서 §5-7 산식 5단계가 본 함수를 호출해야 하므로 공개 노출로 격상.
+> - **v0.3-A 회귀 안전성**: 본 2종은 v0.3-A에서도 단계 9 내부 함수로 동작했으므로, 공개 노출 격상은 시그니처·반환값 변동 0건. 회귀 영향 0건.
+
+> **v0.3-B 노출 멤버 합계 검산**: v0.1 17종 + v0.2 신규 3종 + v0.3-A 신규 1종 (`isHeavyTaxationApplicable`) + **v0.3-B 신규 2종 (`findProgressiveTaxAmount` + `findHeavyProgressiveTaxAmount`) = 23종**.
 
 ---
 
@@ -205,7 +255,7 @@ v0.2.1 §4-2 표 그대로 (23종 — `transferGain`·`taxableGain`·`nonTaxable
 
 #### 4-2-2. v0.3-A 신규 4종
 
-명세서 §3-7 표 그대로 옮김.
+명세서 v0.3-A §3-7 표 그대로 옮김.
 
 | 필드 | 타입 | 단계 | 의미 |
 |---|---|---|---|
@@ -216,30 +266,53 @@ v0.2.1 §4-2 표 그대로 (23종 — `transferGain`·`taxableGain`·`nonTaxable
 
 > **`shortTermTax`·`heavyProgressiveTax`가 `null`인 케이스**: (a) 중과 미적용, 또는 (b) 중과 적용 + 보유 ≥ 2년 (이 경우는 max 비교 자체가 없음). max 비교 트레이스가 필요 없는 케이스에 `0`이 아닌 `null`로 채우는 이유는, 호출 측이 `=== null` 비교로 "비교가 발생하지 않은 케이스"를 명시적으로 식별하기 위함이다.
 
-#### 4-2-3. `terminateAt2 === true`일 때의 후속 단계 값 일관성 (v0.2.1 그대로 + v0.3-A 신규 필드 정책)
+#### 4-2-2-B. v0.3-B 신규 4종 (확정신고 v3 산식 트레이스)
 
-v0.2.1 §4-2-1 표 그대로 적용. v0.3-A 신규 4종 필드는 다음으로 채운다:
+명세서 v0.3-B §5-7-3 본문 인용. 본 4종 필드는 **확정신고 v3 산식 5단계 (§5-7) 처리 후** 양도별 결과 객체에 채워진다.
 
-| 필드 | terminateAt2=true 시 값 |
-|---|---|
-| `isHeavyTaxation` | `false` (단계 2 종료, 중과 판정 미실행) |
-| `heavyRateAddition` | `null` |
-| `shortTermTax` | `null` |
-| `heavyProgressiveTax` | `null` |
+| 필드 | 타입 | 단계 | 의미 |
+|---|---|---|---|
+| **`saleYear`** | number | 양도일 산출 직후 | 양도일이 속하는 과세연도 (양도일의 연도 부분). §5-7-3 1단계 `groupByTaxYear`에서 그룹화 키로 사용 |
+| **`finalCalculatedTax`** | number | §5-7 산식 5단계 처리 후 | 확정신고 v3 산식 적용 후 양도별 산출세액 (Math.floor 적용). 단일 양도 (length === 1) 시 = `calculatedTax` 그대로. 다중 양도 시 = MAX(1호, 2호) × (calculatedTax / Σ calculatedTax) 비례 분배 |
+| **`finalReturnMethod`** | string | §5-7-3 4단계 `applyFinalReturnV3` 결과 | 확정신고 산식 채택 영역 식별: `"SINGLE_TRANSFER"` / `"CLAUSE_1_AGGREGATE_PROGRESSIVE"` / `"CLAUSE_2_PER_TRANSFER_WITH_DAN_SEO"` |
+| **`finalReturnDiff`** | number | §5-7-3 4단계 결과 | 확정신고 영역 차이 (`finalReturnTax − Σ calculatedTax`). 단일 양도 시 0. 1호 채택 시 양수 가능 (1호 합산 누진이 자산별 단독보다 클 때). 2호 채택 + 단서 발동 시 양수 가능 |
 
-> **회귀 안전성**: v0.1·v0.2 골든셋(TC-001~010, 모두 비과세 또는 다주택 중과 미적용 케이스)은 단계 2에서 종료되거나 단계 4·9에서 중과 분기를 타지 않으므로, v0.3-A 신규 4종 필드는 모두 위 기본값(`false`/`null`)으로 채워진다. v0.1·v0.2 결과 객체와 비교 시 v0.3-A 신규 필드를 무시하면 100% 동일.
+> **본 4종은 명세서 v0.3-B §5-7-3 본문에서 도출**: 1단계 `groupByTaxYear`가 `saleYear` 사용, 4단계 `applyFinalReturnV3`이 `finalReturnMethod` + `finalReturnDiff` 산출, 5단계 `distributeFinalTaxByShare`가 `finalCalculatedTax` 채움. v0.3-B `result.steps`는 본 4종 필드를 통해 확정신고 v3 산식의 적용 영역을 호출 측이 트레이스 가능하게 한다.
+
+> **`finalReturnMethod === "SINGLE_TRANSFER"` 케이스 (회귀 안전성 영역)**: 단일 양도 입력 (TC-001~014 14건) 시 `applyFinalReturnV3`의 `length === 1` 분기 진입 → `finalCalculatedTax = calculatedTax` 그대로 → totalTax 100% 일치. 의사결정 #13 회귀 안전성 영역.
+
+> **`finalCalculatedTax`와 `calculatedTax` 관계**: `calculatedTax`는 v0.3-A 단계 9·10 산출 결과 (양도 1건 단독 누진 또는 중과 누진). `finalCalculatedTax`는 §5-7 확정신고 v3 산식 적용 후 산출 결과. 단일 양도 시 두 값 동일. 다중 양도 시 호출 측 (`scenario_engine.js`)이 양도별 비례 분배 적용한 값. 후속 단계 11 (지방소득세) + 12 (총 납부세액)는 **`finalCalculatedTax`** 기준으로 재산출 (명세서 §5-7-4 본문).
+
+#### 4-2-3. `terminateAt2 === true`일 때의 후속 단계 값 일관성 (v0.2.1 그대로 + v0.3-A 신규 4종 + v0.3-B 신규 4종 정책)
+
+v0.2.1 §4-2-1 표 그대로 적용. v0.3-A 신규 4종 + v0.3-B 신규 4종 필드는 다음으로 채운다:
+
+| 필드 | terminateAt2=true 시 값 | 사유 |
+|---|---|---|
+| `isHeavyTaxation` (v0.3-A) | `false` | 단계 2 종료, 중과 판정 미실행 |
+| `heavyRateAddition` (v0.3-A) | `null` | (동일) |
+| `shortTermTax` (v0.3-A) | `null` | (동일) |
+| `heavyProgressiveTax` (v0.3-A) | `null` | (동일) |
+| **`saleYear`** (v0.3-B) | 양도일의 연도 (정상 채움) | 단계 2 종료와 무관하게 양도일은 입력 영역. 정상 채움 |
+| **`finalCalculatedTax`** (v0.3-B) | `0` | 비과세 케이스 → calculatedTax = 0 → 단일 양도 분기 → finalCalculatedTax = 0 |
+| **`finalReturnMethod`** (v0.3-B) | `"SINGLE_TRANSFER"` | 단일 양도 입력 (terminateAt2=true 케이스는 비과세 처리이므로 항상 단일 시나리오) |
+| **`finalReturnDiff`** (v0.3-B) | `0` | 단일 양도 분기 → diff = 0 |
+
+> **회귀 안전성**: v0.1·v0.2 골든셋(TC-001~010) + v0.3-A 골든셋(TC-011~014) 14건은 모두 단일 양도 입력. terminateAt2=true 케이스 (TC-006·TC-009 등 1세대1주택 비과세) + terminateAt2=false 케이스 모두 v0.3-B 신규 4종 필드는 `finalReturnMethod = "SINGLE_TRANSFER"` + `finalCalculatedTax = calculatedTax` + `finalReturnDiff = 0`으로 채워진다. v0.1·v0.2·v0.3-A 결과 객체와 비교 시 v0.3-B 신규 4종 필드를 무시하면 100% 동일.
 
 ---
 
-## 5. 13단계 파이프라인 함수 계약 (v0.3-A 변경분만)
+## 5. 13단계 파이프라인 함수 계약 (v0.3-A 변경분 + v0.3-B 신규 §5-7)
 
-> 본 절은 v0.2.1과 **달라진 단계 4·9·10**과 **v0.3-A 신규 함수 1종(§5-5)**만 다룬다. 단계 0·1·2·3·5·6·7·8·11·12·13 본문은 v0.2.1 모듈 스펙과 **완전 동일**하므로 본 문서에서 재정의하지 않는다.
+> 본 절은 v0.2.1과 **달라진 단계 4·9·10** + **v0.3-A 신규 함수 1종(§5-5)** + **v0.3-B 신규 §5-7 (확정신고 v3 산식 5단계)** 만 다룬다. 단계 0·1·2·3·5·6·7·8·11·12·13 본문은 v0.2.1 모듈 스펙과 **완전 동일**하므로 본 문서에서 재정의하지 않는다.
 
 ### 5-1. 단계 2·3 — v0.2.1 그대로 (변경 없음)
 
 v0.2.1 모듈 스펙 §5-1 (`applyNonTaxation` + `check1Se1HouseExemption`) + §5-2 (`applyHighValueAllocation` + `calculateHighValuePortion`)와 **완전 동일**. 본 문서에서 재정의 없음.
 
 > **v0.3-A 영향**: 단계 2 종료 시 `is1Se1House` 출력은 v0.3-A에서 §5-5 `isHeavyTaxationApplicable` 조건 4(1세대1주택 비과세 미적용)의 입력으로 추가 사용된다. 단계 2 본문은 변경 없음.
+
+> **v0.3-B 영향**: 단계 2 본문 변경 0건. 양도일 산출 직후 `saleYear` 채움은 단계 0 (validateCaseData) 또는 단계 1 (transferGain 산출 직전) 단계에서 처리. 본 모듈 스펙은 호출 측 책임 명시.
 
 ### 5-2. 단계 4 — `computeLongTermDeduction(taxableGain, caseData, intermediates)` (v0.3-A 변경)
 
@@ -393,7 +466,356 @@ v0.3-A: **중과 적용 여부에 따라 산식 흐름이 달라진다.**
 
 > **단계 10이 v0.3-A 변경 영향 영역에 포함된 이유**: v0.3-A 명세서 §0-1 변경 요약 표에서 단계 10이 "의미 확장"으로 명시된 것은, `calculatedTax`가 중과 분기 결과를 이미 포함한다는 의미적 변경을 강조하기 위함이다. 함수 본문은 변경 없음.
 
-### 5-7. 단계 11·12·13 — v0.2.1 그대로 (변경 없음)
+### 5-7. v0.3-B 신규 — 확정신고 v3 산식 5단계 (법 제104조 ⑤ 정확본)
+
+#### 5-7-1. §섹션 영역 (사용자 결정 옵션 (A) 채택 — 산식 본문 engine 측 단일 책임)
+
+본 §5-7은 v0.3-B 신규 §섹션이다. 명세서 v0.3-B §5-7-3 본문을 단일 진본으로 인용하여 작성된다. 본 §5-7과 명세서가 충돌하면 명세서가 우선.
+
+**산식 본문 위치 결정** (사용자 결정 옵션 (A) 본문 영속화):
+
+| 영역 | 본문 |
+|---|---|
+| 산식 5단계 본문 | **`tax_engine.md` v0.3-B §5-7 (본 §섹션)** — 단일 진본 |
+| 호출 위치 | `simulateScenarioWithStateTransition` 끝부분 (`scenario_engine.js` v0.3-B — 작업 창 #14+ 인계, `scenario_engine.md` v0.3-B 신규 작성) |
+| `findProgressiveTaxAmount` + `findHeavyProgressiveTaxAmount` 노출 | 본 모듈 §2 v0.3-B 신규 노출 2종 (산식 5단계가 호출하므로 공개 노출 격상) |
+| LAW_REFS | `tax_rules.md` v0.3-B §3-6-2-B `finalReturnAggregation` 1키 |
+| issueFlag | 본 모듈 §6-A 카탈로그 신규 2종 (`FINAL_RETURN_AGGREGATE_PROGRESSIVE_APPLIED` + `FINAL_RETURN_DAN_SEO_APPLIED`) |
+
+#### 5-7-2. 법령 본문 (법 제104조 제5항 정확본)
+
+본 §섹션의 모든 산식은 다음 법령 본문을 단일 정본으로 한다:
+
+> **소득세법 제104조 제5항** ⑤ 해당 과세기간에 제94조제1항제1호·제2호 및 제4호에서 규정한 자산을 둘 이상 양도하는 경우 양도소득 산출세액은 다음 각 호의 금액 중 큰 것으로 한다.
+> 1. 해당 과세기간의 양도소득과세표준 합계액에 대하여 제55조제1항에 따른 세율을 적용하여 계산한 양도소득 산출세액
+> 2. 제1항부터 제4항까지 및 제7항의 규정에 따라 계산한 자산별 양도소득 산출세액 합계액. 다만, 둘 이상의 자산에 대하여 제1항 각 호, 제4항 각 호 및 제7항 각 호에 따른 세율 중 동일한 호의 세율이 적용되고, 그 적용세율이 둘 이상인 경우 해당 자산에 대해서는 각 자산의 양도소득과세표준을 합산한 것에 대하여 제1항·제4항 또는 제7항의 각 해당 호별 세율을 적용하여 산출한 세액 중에서 큰 산출세액의 합계액으로 한다.
+
+> **사용자 39번째 짚음 정정 영역**: 시행령 제167조의10은 다주택 중과 자산 정의 조문일 뿐. 법 제104조 ⑤ 적용 영역에서 시행령 제167조의10을 "자산별 단독 과세 근거"로 인용하는 것은 잘못. 본 §5-7 영역에서 시행령 제167조의10 인용 0건 — `LAW_REFS.finalReturnAggregation` = "소득세법 제104조 제5항(본문·1호·2호 본문·2호 단서) + 제55조 제1항"만 인용.
+
+#### 5-7-3. 5단계 산식 본문 (명세서 §5-7-3 본문 단일 진본 인용)
+
+##### 1단계 — `groupByTaxYear(perTransferResults)` 함수 계약
+
+| 항목 | 내용 |
+|---|---|
+| 입력 | `perTransferResults: TaxResult[]` (시나리오 내 모든 양도 결과 배열) |
+| 출력 | `Map<number, TaxResult[]>` (key = saleYear, value = 동일 과세연도 양도 결과 배열) |
+| 부수효과 | 없음 (순수 함수) |
+| 결정성 | 동일 입력 → 동일 출력 (Map 순회 순서 결정성은 호출 측 책임) |
+| 호출 측 | `simulateScenarioWithStateTransition` 끝부분 (`scenario_engine.js`) |
+| 예외 | `r.saleYear`가 비정수·NaN·undefined일 때 throw (입력 검증 영역) |
+
+**의사코드** (명세서 §5-7-3 1단계 본문 그대로):
+
+```js
+function groupByTaxYear(perTransferResults) {
+  const groups = new Map();
+  for (const r of perTransferResults) {
+    const year = r.saleYear; // 양도일 속하는 과세연도 (result.steps.saleYear)
+    if (!groups.has(year)) groups.set(year, []);
+    groups.get(year).push(r);
+  }
+  return groups;
+}
+```
+
+> **`saleYear` 값**: `result.steps.saleYear` 필드 (§4-2-2-B v0.3-B 신규 4종 중 1종). 양도일의 연도 부분 (예: 2026-09-15 → 2026).
+
+##### 2단계 — `calculateClause1AggregateProgressive(perTransferResultsSameYear)` 함수 계약 (1호 합산 누진)
+
+| 항목 | 내용 |
+|---|---|
+| 입력 | `perTransferResultsSameYear: TaxResult[]` (동일 과세연도 양도 결과 배열, 길이 ≥ 1) |
+| 출력 | `number` (1호 산출세액 — 모든 자산 과세표준 합산 × 제55조 ① 일반 누진세율 1회 적용) |
+| 부수효과 | 없음 |
+| 결정성 | 동일 입력 → 동일 출력 |
+| 호출 측 | `applyFinalReturnV3` 함수 내부 (§5-7-3 4단계) |
+| 의존 함수 | `findProgressiveTaxAmount(taxBase)` (§2 v0.3-B 신규 노출 1종) |
+
+**의사코드** (명세서 §5-7-3 2단계 본문 그대로):
+
+```js
+function calculateClause1AggregateProgressive(perTransferResultsSameYear) {
+  // 모든 자산 과세표준 합산 (중과 자산 포함)
+  const totalTaxBase = perTransferResultsSameYear.reduce(
+    (sum, r) => sum + r.taxBase, 0
+  );
+  
+  // 제55조 ① 일반 누진세율 1회 적용 (가산세율 미적용)
+  return findProgressiveTaxAmount(totalTaxBase);
+}
+```
+
+> **사용자 39번째 짚음 정정 영역**: v2 잘못 정정안 → "1호 합산을 일반과세 자산만으로 좁게 적용". v3 정확본 → **모든 자산 과세표준 합산** (중과 자산 포함). 1호 적용 영역에서 자산 종류별 분리 0건. 사유: 법 제104조 ⑤ 1호 본문은 "해당 과세기간의 양도소득과세표준 합계액"으로 명시 — 모든 자산 합산.
+
+> **가산세율 미적용 사유**: 1호는 "제55조제1항에 따른 세율"만 인용 — 제104조 ⑦(다주택 중과)는 1호 영역 미적용. 일반 누진세율 1회 적용.
+
+##### 3단계 — `calculateClause2PerTransferWithDanSeo(perTransferResultsSameYear)` 함수 계약 (2호 단독 합계 + 단서)
+
+| 항목 | 내용 |
+|---|---|
+| 입력 | `perTransferResultsSameYear: TaxResult[]` (동일 과세연도 양도 결과 배열, 길이 ≥ 1) |
+| 출력 | `number` (2호 산출세액 — 자산별 단독 합계 + 단서 발동 시 동일 호 세율 자산 합산) |
+| 부수효과 | 없음 |
+| 결정성 | 동일 입력 → 동일 출력 |
+| 호출 측 | `applyFinalReturnV3` 함수 내부 (§5-7-3 4단계) |
+| 의존 함수 | `findProgressiveTaxAmount(taxBase)` (1호 단서 발동 시 일반 누진세율) + `findHeavyProgressiveTaxAmount(taxBase, addition)` (중과 단서 발동 시 가산세율 적용 누진세율) — 둘 다 §2 v0.3-B 신규 노출 |
+| 보조 함수 | `getRateGroupKey(addition)` 정수 키 헬퍼 (5/4 합의 결정 1번 — B-022 부동소수점 회피) |
+
+**의사코드** (명세서 §5-7-3 3단계 본문 그대로):
+
+```js
+function calculateClause2PerTransferWithDanSeo(perTransferResultsSameYear) {
+  // 그룹화: heavyRateAddition 별 (0.0=일반, 0.20=2주택, 0.30=3주택)
+  // 부동소수점 회피용 정수 키 (B-022 — 5/4 합의 결정 1번)
+  const byHeavyAddition = new Map();
+  for (const r of perTransferResultsSameYear) {
+    const addition = r.heavyRateAddition !== null ? r.heavyRateAddition : 0.0;
+    const key = getRateGroupKey(addition);   // 정수 키 — Math.round 패턴
+    if (!byHeavyAddition.has(key)) byHeavyAddition.set(key, { addition, group: [] });
+    byHeavyAddition.get(key).group.push(r);
+  }
+  
+  let total = 0;
+  for (const [key, { addition, group }] of byHeavyAddition.entries()) {
+    if (group.length >= 2) {
+      // 단서 발동: 동일 호 세율 자산 ≥ 2 → 합산 후 호별 세율 + MAX(합산, 단독) 채택
+      const sumBase = group.reduce((s, r) => s + r.taxBase, 0);
+      const aggregatedInGroup = (addition === 0.0)
+        ? findProgressiveTaxAmount(sumBase)            // 일반 누진세율
+        : findHeavyProgressiveTaxAmount(sumBase, addition);   // 가산세율 적용 누진세율
+      const sumSolo = group.reduce((s, r) => s + r.calculatedTax, 0);
+      // MAX(합산 결과, 단독 합계) 그룹별 채택
+      total += Math.max(aggregatedInGroup, sumSolo);
+    } else {
+      // 단일 자산: 단독 그대로 (단서 미발동)
+      total += group[0].calculatedTax;
+    }
+  }
+  return total;
+}
+
+// 정수 키 헬퍼 (B-022 부동소수점 회피 — 5/4 합의 결정 1번)
+function getRateGroupKey(addition) {
+  // 0.0 → "clause1_addition_0", 0.20 → "clause1_addition_20", 0.30 → "clause1_addition_30"
+  return "clause1_addition_" + Math.round(addition * 100).toString();
+}
+```
+
+> **5/4 합의 결정 1번 본문** (정수 키 채택 사유): JavaScript에서 `0.1 + 0.2 !== 0.3` 부동소수점 정합성 문제 회피. `addition` 값은 0.0·0.20·0.30 3종으로 한정되므로 `Math.round(addition * 100)` 패턴으로 정수 키 생성. Map의 키 비교가 결정성 보장.
+
+> **5/4 합의 결정 2번 본문** (v0.3-A 누적 baseTax 산식 채택 사유): `findHeavyProgressiveTaxAmount`은 v0.3-A §5-A-9-1 본문의 누적 baseTax 산식을 그대로 사용 (Python 표준 누진공제 산식 미사용). 사유: v0.3-A 본문이 단일 진본이며 산식 변경 시 회귀 영향 발생 가능. v0.3-A 본문 그대로 보존이 v0.3-A 회귀 안전성 영역에 정합.
+
+##### 4단계 — `applyFinalReturnV3(perTransferResultsSameYear)` 함수 계약 (MAX(1호, 2호) 채택 + selection)
+
+| 항목 | 내용 |
+|---|---|
+| 입력 | `perTransferResultsSameYear: TaxResult[]` (동일 과세연도 양도 결과 배열, 길이 ≥ 0) |
+| 출력 | `{ finalReturnTax: number, method: string, diff: number, aggregateTaxClause1?: number, aggregateTaxClause2?: number, perTransferTax?: number }` |
+| 부수효과 | 없음 |
+| 결정성 | 동일 입력 → 동일 출력 |
+| 호출 측 | `simulateScenarioWithStateTransition` 끝부분 (`scenario_engine.js`) |
+| 의존 함수 | `calculateClause1AggregateProgressive` + `calculateClause2PerTransferWithDanSeo` (§5-7-3 2·3단계) |
+| selection 분기 | `length === 0` → `{ finalReturnTax: 0, method: "NONE", diff: 0 }` / `length === 1` → **`SINGLE_TRANSFER` 분기** (회귀 안전성 영역) / `length >= 2` → MAX(1호, 2호) 채택 |
+
+**의사코드** (명세서 §5-7-3 4단계 본문 그대로):
+
+```js
+function applyFinalReturnV3(perTransferResultsSameYear) {
+  if (perTransferResultsSameYear.length === 0) {
+    return { finalReturnTax: 0, method: "NONE", diff: 0 };
+  }
+  
+  if (perTransferResultsSameYear.length === 1) {
+    // ★ SINGLE_TRANSFER 분기 — TC-001~014 회귀 안전성 영역 (5/4 합의 결정 3번 채택)
+    const r = perTransferResultsSameYear[0];
+    return {
+      finalReturnTax: r.calculatedTax,   // v0.3-A 산출세액 그대로
+      method: "SINGLE_TRANSFER",
+      diff: 0,
+    };
+  }
+  
+  // 1호·2호 산출
+  const clause1Tax = calculateClause1AggregateProgressive(perTransferResultsSameYear);
+  const clause2Tax = calculateClause2PerTransferWithDanSeo(perTransferResultsSameYear);
+  
+  // 자산별 단독 합계 (예정신고 비교 영역)
+  const perTransferTotal = perTransferResultsSameYear.reduce(
+    (s, r) => s + r.calculatedTax, 0
+  );
+  
+  // MAX 채택
+  const finalReturnTax = Math.max(clause1Tax, clause2Tax);
+  const method = (finalReturnTax === clause1Tax)
+    ? "CLAUSE_1_AGGREGATE_PROGRESSIVE"
+    : "CLAUSE_2_PER_TRANSFER_WITH_DAN_SEO";
+  
+  return {
+    finalReturnTax,
+    method,
+    diff: finalReturnTax - perTransferTotal,
+    aggregateTaxClause1: clause1Tax,
+    aggregateTaxClause2: clause2Tax,
+    perTransferTax: perTransferTotal,
+  };
+}
+```
+
+> **5/4 합의 결정 3번 본문** (`length === 1` → `SINGLE_TRANSFER` 분기 채택 사유): TC-001~014 14건은 모두 단일 양도 입력. 본 분기 진입 시 `finalReturnTax = r.calculatedTax` 그대로 → totalTax 100% 일치. 의사결정 #13 회귀 안전성 영역 정본.
+
+> **MAX 채택 검증 영역**: xlsx 시트 19 (산식정정_v3) 본문 직접 인용 — 모든 시나리오 (TC-S05·S06·S07) method = `CLAUSE_2_PER_TRANSFER_WITH_DAN_SEO` (2호 채택). 사유: 다주택 중과 적용 자산 1건 이상 시 2호 산출세액이 1호보다 항상 큼. 1호 채택 발동 케이스 (모든 자산 일반과세 + 양도차익 작은 케이스)는 검증팀 정확 검증 영역.
+
+##### 5단계 — `distributeFinalTaxByShare(perTransferResultsSameYear, finalReturnResult)` 함수 계약 (양도별 비례 분배)
+
+| 항목 | 내용 |
+|---|---|
+| 입력 | `perTransferResultsSameYear: TaxResult[]`, `finalReturnResult: { finalReturnTax, method, ... }` |
+| 출력 | (부수효과로 `perTransferResultsSameYear[i].finalCalculatedTax` 채움) |
+| 부수효과 | **있음** — `result.steps.finalCalculatedTax` 필드 mutation (호출 측 책임) |
+| 결정성 | 동일 입력 → 동일 출력 |
+| 호출 측 | `simulateScenarioWithStateTransition` (`applyFinalReturnV3` 호출 직후) |
+| 분배 산식 | 양도별 `calculatedTax / Σ calculatedTax` 비율 × `finalReturnTax` (Math.floor 적용) |
+
+**의사코드** (명세서 §5-7-3 5단계 본문 그대로):
+
+```js
+function distributeFinalTaxByShare(perTransferResultsSameYear, finalReturnResult) {
+  if (finalReturnResult.method === "SINGLE_TRANSFER") {
+    // 단일 양도 분기 — finalCalculatedTax = calculatedTax 그대로
+    perTransferResultsSameYear[0].finalCalculatedTax = 
+      finalReturnResult.finalReturnTax;
+    return;
+  }
+  
+  const totalCalc = perTransferResultsSameYear.reduce(
+    (s, r) => s + r.calculatedTax, 0
+  );
+  
+  if (totalCalc === 0) {
+    // 전체 비과세 케이스 — 분배 0
+    for (const r of perTransferResultsSameYear) r.finalCalculatedTax = 0;
+    return;
+  }
+  
+  for (const r of perTransferResultsSameYear) {
+    const share = r.calculatedTax / totalCalc;
+    r.finalCalculatedTax = Math.floor(finalReturnResult.finalReturnTax * share);
+  }
+}
+```
+
+> **부수효과 영역**: 본 함수는 `result.steps.finalCalculatedTax`를 mutation한다. 본 모듈 §7 불변성 약속 (v0.2.1 + v0.3-A) 영역의 예외 — v0.3-B 산식 5단계 처리 후에만 1회 mutation 허용. 호출 측은 본 mutation을 인지한 후 `localIncomeTax`·`totalTax`·`netAfterTaxSaleAmount`·`effectiveTaxRate` 재산출 (호출 측 `simulateScenarioWithStateTransition` 책임).
+
+> **반올림 vs 절사**: `Math.floor` 적용 — v0.3-A 단계 9·10·11의 절사 정책과 정합 (B-022 정수 처리 영역).
+
+> **분배 후 합계 vs 원본 합계**: 분배 후 `Σ finalCalculatedTax`는 `floor` 누적 손실로 `finalReturnTax`보다 약간 작을 수 있음 (최대 N−1원, N = 양도 개수). xlsx 시트 19 검증 결과 — TC-S06 SC-3에서 **−1원 차이** 발생 (894,816,998 → 894,816,997). 본 차이는 v3 산식 본문의 정합 영역 (상호 배타 분배). 호출 측은 본 차이를 issueFlag로 표시 미고려 (검증 영역).
+
+#### 5-7-4. 호출 위치 (`simulateScenarioWithStateTransition` 끝부분)
+
+본 §5-7-4는 산식 5단계의 호출 위치를 명시한다. **호출 본문은 `scenario_engine.js` 모듈 (작업 창 #14+ 인계) 책임**이며, 본 모듈 스펙은 호출 측 약속만 명시한다.
+
+```js
+// scenario_engine.js v0.3-B (작업 창 #14+ 산출 — 본 모듈 스펙은 호출 측 책임 명시만)
+function simulateScenarioWithStateTransition(scenario, caseData) {
+  // 기존 본문: 양도별 calculateSingleTransfer 호출 + 상태전이
+  const perTransferResults = [...]; // 기존 처리 (v0.3-A 그대로)
+  
+  // ★ v0.3-B 신규: 확정신고 v3 산식 5단계 호출
+  const yearGroups = groupByTaxYear(perTransferResults);   // 1단계
+  const finalReturnSummary = new Map();
+  
+  for (const [year, results] of yearGroups.entries()) {
+    const fr = applyFinalReturnV3(results);                // 4단계 (2·3단계 내부 호출)
+    finalReturnSummary.set(year, fr);
+    distributeFinalTaxByShare(results, fr);                // 5단계
+  }
+  
+  // 양도별 totalTax 재산출 (finalCalculatedTax 기준)
+  for (const r of perTransferResults) {
+    r.localIncomeTax = Math.floor(r.finalCalculatedTax * 0.10);
+    r.totalTax = r.finalCalculatedTax + r.localIncomeTax;
+    r.netAfterTaxSaleAmount = r.expectedSalePrice - r.totalTax;
+    r.effectiveTaxRate = r.expectedSalePrice > 0 
+      ? r.totalTax / r.expectedSalePrice : 0;
+  }
+  
+  return {
+    perTransferResults,
+    finalReturnSummary: Object.fromEntries(finalReturnSummary),
+    // ... 기존 반환 영역
+  };
+}
+```
+
+> **호출 측 책임 영역 (인계)**: 본 모듈 스펙은 **산식 5단계 본문**만 단일 책임. 호출 위치·결과 mutation·`localIncomeTax`·`totalTax`·`netAfterTaxSaleAmount`·`effectiveTaxRate` 재산출은 모두 `scenario_engine.js` 모듈 (작업 창 #14+ 인계) 책임.
+
+> **사용자 결정 옵션 (A) 본문 영속화 영역**: 본 §5-7-4 의사코드는 **참고용** — 본 모듈 스펙은 호출 위치 명시만 단일 책임. 실제 호출 본문은 `scenario_engine.md` v0.3-B (신규 작성) 정본.
+
+#### 5-7-5. v0.3-A 회귀 안전성 산식 증명
+
+| 영역 | 처리 |
+|---|---|
+| TC-001~014 14건 (단일 양도 입력) | `applyFinalReturnV3` 호출 시 `length === 1` → `SINGLE_TRANSFER` 분기 → `finalReturnTax = r.calculatedTax` 그대로 → `distributeFinalTaxByShare`도 `length === 1` 분기 → `finalCalculatedTax = calculatedTax` 그대로 → totalTax 100% 일치 |
+| 단일 시나리오 입력 | 동일 (시나리오 = 양도 1건) |
+| 본 §5-7 영역 도입의 v0.3-A 영향 | **0건** (단일 양도 분기 진입 시 v0.3-A 결과 그대로 보존) |
+| KPI 5자 일치 누적 14건 | 보존 보장 (의사결정 #13 본문) |
+
+산식 증명:
+
+```
+v0.3-B 단일 양도 입력:
+  perTransferResults = [r_1] (length 1)
+  
+  1단계 groupByTaxYear: groups = { saleYear_1: [r_1] }
+  
+  4단계 applyFinalReturnV3(groups[saleYear_1]):
+     length === 1 → SINGLE_TRANSFER 분기
+     return { finalReturnTax: r_1.calculatedTax, method: "SINGLE_TRANSFER", diff: 0 }
+  
+  5단계 distributeFinalTaxByShare:
+     method === "SINGLE_TRANSFER" → r_1.finalCalculatedTax = r_1.calculatedTax
+  
+  결과:
+     r_1.finalCalculatedTax = r_1.calculatedTax (v0.3-A 정답값)
+     r_1.localIncomeTax = floor(r_1.finalCalculatedTax * 0.10) = floor(r_1.calculatedTax * 0.10) (v0.3-A 그대로)
+     r_1.totalTax = r_1.finalCalculatedTax + r_1.localIncomeTax (v0.3-A 그대로)
+  
+  → TC-001~014 14건 totalTax 100% 일치 ∎
+```
+
+> **회귀 깨지면 즉시 롤백**: 본 산식 증명이 실제 코드에서 깨지면 v0.3-B 마이그레이션 실패. 의사결정 #11 (정확성 > 속도) 적용.
+
+#### 5-7-6. v0.3-B 신규 검증 영역 (TC-S05·S06·S07)
+
+xlsx 시트 19 (산식정정_v3) 본문 직접 인용 — v3 산식 적용 결과:
+
+| TC | 시나리오 | v3 Σ totalTax | method |
+|---|---|---|---|
+| TC-S05 | SC-1 (A→C) | 606,694,000 | CLAUSE_2_PER_TRANSFER_WITH_DAN_SEO |
+| TC-S05 | SC-2 (C→A) | 521,911,500 | CLAUSE_2_PER_TRANSFER_WITH_DAN_SEO |
+| TC-S05 | SC-3 (B→C) | 296,438,998 | CLAUSE_2_PER_TRANSFER_WITH_DAN_SEO |
+| TC-S05 | SC-4 (C→B) | **255,051,500** ★ rank 1 | CLAUSE_2_PER_TRANSFER_WITH_DAN_SEO |
+| TC-S06 | SC-1 (A→B→C) | 960,212,000 | CLAUSE_2_PER_TRANSFER_WITH_DAN_SEO |
+| TC-S06 | SC-3 (B→A→C) | **894,816,997** | CLAUSE_2_PER_TRANSFER_WITH_DAN_SEO (v2 894,816,998 → v3 894,816,997, 차이 −1) |
+| TC-S06 | SC-6 (C→B→A) | **296,453,076** ★ rank 1 | CLAUSE_2_PER_TRANSFER_WITH_DAN_SEO |
+| TC-S07 | SC-6 (C→B 분산 [2026, 2027]) | **253,401,500** ★ rank 1 | SINGLE_TRANSFER (분산 양도는 각 연도 단독) |
+| TC-S07 | SC-4 (C→B 동일 연도) | 255,051,500 | CLAUSE_2_PER_TRANSFER_WITH_DAN_SEO |
+
+> **검증 영역 단일 진본**: xlsx 시트 19 본문 그대로. 본 모듈 스펙은 정답값 인용만 단일 보유. 검증팀 손계산 + 홈택스 모의계산 일치 여부는 별도 KPI 4자 일치 운영 영역 (명세서 v0.3-B §11-3).
+
+> **과세기간 분산 효과 (TC-S07 SC-4 vs SC-6)**: SC-4 (동일 연도 C→B) 255,051,500 → SC-6 (분산 [2026, 2027]) 253,401,500 = **1,650,000원 절세** (분산 양도는 각 연도 단독 → SINGLE_TRANSFER 분기 → 기본공제 250만원 1회 추가 + 동일 과세기간 다중 양도 회피).
+
+#### 5-7-7. issueFlag 신규 2종 (§6-A 카탈로그 v0.3-B 신규)
+
+| issueFlag | severity | 발동 조건 | 메시지 (요약) |
+|---|---|---|---|
+| `FINAL_RETURN_AGGREGATE_PROGRESSIVE_APPLIED` | info | TYPE_2_ORDER 또는 TYPE_3_TIMING 시나리오에서 `method === "CLAUSE_1_AGGREGATE_PROGRESSIVE"` 발동 | 동일 과세기간 다중 양도로 합산 누진 적용. 자산별 단독보다 큼 → 1호 채택 |
+| `FINAL_RETURN_DAN_SEO_APPLIED` | info | `method === "CLAUSE_2_PER_TRANSFER_WITH_DAN_SEO"` + 단서 발동 (동일 호 세율 자산 ≥ 2) | 동일 세율 자산 합산 단서 적용. MAX(합산, 단독) 채택 |
+
+§6-A 표 끝에 26·27번째 행 추가 — §6-A 카탈로그 v0.3-A 25종 → v0.3-B 27종.
+
+### 5-8. 단계 11·12·13 — v0.2.1 그대로 (변경 없음)
 
 v0.2.1 모듈 스펙 그대로 (단계 11: 지방소득세 산출, 단계 12: 총세액 합산, 단계 13: 결과 객체 조립).
 
@@ -473,13 +895,55 @@ v0.3-A의 issueFlag 카탈로그는 명세서 §6 정본을 참조한다. 본 �
 
 v0.2.1 §6 카탈로그 18종 그대로 (명세서 §6 정본 참조). 본 문서에서 재정의 없음.
 
-#### 6-A-5. 활성 카탈로그 합계
+#### 6-A-5. v0.3-A 활성 카탈로그 합계
 
 `v0.2.1 18종 + v0.3-A 신규 5종 + 보조 3종 − 폐기 1종 = 활성 25종`
 
 > **명세서 §3-6 카운팅과의 정합성**: 명세서 §3-6에서는 "신규 5종 + 보조 3종 = 8종 신규" 표기와 폐기 1종을 포함해 순증 7종으로 계산. 본 문서 카운팅(활성 25종 = v0.2.1 18종 − 폐기 1종 + 신규 8종)과 동일 (검산: 18 − 1 + 8 = 25).
 
 > **`caseData` 시스템 프롬프트의 "신규 7종" 표기와의 차이**: 시스템 프롬프트 일부 위치는 "신규 7종"으로 표기되어 있으나, 명세서 §3-6 정본은 "신규 5종 + 보조 3종 = 8종 신규 (폐기 1 포함 시 순증 7)"이다. 본 모듈 스펙은 명세서 정본을 채택.
+
+### 6-B. v0.3-B issueFlag 카탈로그 변경분 (확정신고 v3 산식 신규 2종)
+
+v0.3-B는 v0.3-A 활성 카탈로그 25종에 **신규 2종**을 추가한다. 발동 조건·메시지·LAW_REFS 매핑은 명세서 v0.3-B §5-7-6 + §9-2 본문 그대로.
+
+#### 6-B-1. 신규 2종 (확정신고 v3 산식 영역)
+
+| 코드 | 발동 조건 (intermediates 기준) | severity | 비고 |
+|---|---|---|---|
+| `FINAL_RETURN_AGGREGATE_PROGRESSIVE_APPLIED` | TYPE_2_ORDER 또는 TYPE_3_TIMING 시나리오에서 `finalReturnMethod === "CLAUSE_1_AGGREGATE_PROGRESSIVE"` 발동 | info | 동일 과세기간 다중 양도로 합산 누진 적용 (1호 채택). 자산별 단독보다 큼. `LAW_REFS.finalReturnAggregation` 인용. xlsx 시트 19 검증 영역 — TC-S05·S06·S07에서 본 코드 발동 0건 (모든 시나리오 2호 채택) |
+| `FINAL_RETURN_DAN_SEO_APPLIED` | `finalReturnMethod === "CLAUSE_2_PER_TRANSFER_WITH_DAN_SEO"` + 단서 발동 (동일 호 세율 자산 ≥ 2 합산) | info | 동일 세율 자산 합산 단서 적용. MAX(합산, 단독) 채택. `LAW_REFS.finalReturnAggregation` 인용. xlsx 시트 19 검증 영역 — TC-S05·S06·S07에서 본 코드 발동 다수 |
+
+#### 6-B-2. v0.3-B 활성 카탈로그 합계
+
+`v0.3-A 활성 25종 + v0.3-B 신규 2종 = 활성 27종`
+
+| 카테고리 | v0.2.1 | v0.3-A 변동 | v0.3-A 합계 | v0.3-B 변동 | **v0.3-B 합계** |
+|---|---|---|---|---|---|
+| v0.1 계승 | 10 | 0 | 10 | 0 | **10** |
+| v0.2.1 신규 | 8 | 0 | 8 | 0 | **8** |
+| v0.3-A 신규 (중과 핵심) | — | +5 | 5 | 0 | **5** |
+| v0.3-A 보조 | — | +3 | 3 | 0 | **3** |
+| v0.3-A 폐기 | — | −1 | −1 | 0 | **−1** |
+| **v0.3-B 신규 (확정신고 v3)** | — | — | — | **+2** | **2** |
+| **합계** | **18** | **+7 (순증)** | **25** | **+2 (순증)** | **27** |
+
+#### 6-B-3. 발동 조건 상호 배타성
+
+`FINAL_RETURN_AGGREGATE_PROGRESSIVE_APPLIED`와 `FINAL_RETURN_DAN_SEO_APPLIED`는 **상호 배타**:
+
+| 시나리오 영역 | 발동 코드 |
+|---|---|
+| 단일 양도 (length === 1) | 0건 (`finalReturnMethod === "SINGLE_TRANSFER"`) — TC-001~014 회귀 안전성 영역 |
+| 다중 양도 + 1호 채택 | `FINAL_RETURN_AGGREGATE_PROGRESSIVE_APPLIED` 1건 |
+| 다중 양도 + 2호 채택 + 단서 미발동 | 0건 |
+| 다중 양도 + 2호 채택 + 단서 발동 | `FINAL_RETURN_DAN_SEO_APPLIED` 1건 |
+
+> **단서 발동 조건**: `calculateClause2PerTransferWithDanSeo` 함수의 `byHeavyAddition` 그룹 중 1개 이상의 그룹이 `length >= 2` (동일 호 세율 자산 ≥ 2). 그룹별 MAX(합산 결과, 단독 합계) 채택 시 본 코드 발동.
+
+#### 6-B-4. v0.3-A 회귀 안전성 (단일 양도 입력 시 발동 0건)
+
+TC-001~014 14건은 모두 단일 양도 입력 → `finalReturnMethod === "SINGLE_TRANSFER"` → 본 신규 2종 발동 0건. 회귀 영향 0건.
 
 ---
 
@@ -628,7 +1092,8 @@ if (typeof window.TaxOpt.taxRules.HEAVY_TAX_RATE_ADDITION === 'undefined' ||
 | v0.1.1 | 2026-04-29 | 초판. 작업 창 #4 산출. 13단계 파이프라인 본문 확정 |
 | v0.2.0 | 2026-04-30 | 작업 창 #6 산출. (1) 노출 멤버 3종 신규: `check1Se1HouseExemption`·`calculateHighValuePortion`·`calculateLongTermDeduction`. (2) v0.1 함수 시그니처 유지, 단계 2·3·4 본문 활성. (3) `result.steps`에 v0.2 신규 필드 10종 추가. (4) `terminateAt2=true` 시 후속 단계값 명시 0/null 정책 추가. (5) `tax_rules.js` 의존 6종 추가. (6) issueFlag 카탈로그 18종. |
 | v0.2.1 | 2026-05-01 | TC-006~010 검증 통과. `calculateLongTermDeduction` 룩업 호출 패턴 정정. tax_rules.js 정본 룩업 테이블 + `findHoldingRate`·`findResidenceRate` 함수 정본 확정. §11-1 보류 항목 해소. |
-| **v0.3-A** | **2026-05-02** | **본 버전. 작업 창 (현재) 산출. (1) 노출 멤버 1종 신규: `isHeavyTaxationApplicable(caseData, intermediates)`. v0.2.1 20종 + 1 = 21종. (2) 단계 4 변경: 다주택 중과 발동 시 `longTermDeduction = 0` 강제 (제95조 ② 단서). 함수 시그니처에 `intermediates` 인자 추가. 출력 필드 2종 추가(`isHeavyTaxation`·`heavyRateAddition`). (3) 단계 9 변경: 중과 적용 + 보유 ≥ 2년 → 누진 구간 누적 세액 동적 재계산. 중과 적용 + 보유 < 2년 → max 비교 (제104조 ⑦ 본문 단서). 출력 필드 2종 추가(`shortTermTax`·`heavyProgressiveTax`). (4) `result.steps`에 v0.3-A 신규 필드 4종 추가 (총 27종). (5) `tax_rules.js` 의존 19종 (v0.2.1 17종 + v0.3-A 신규 2종 — 정본 명칭 기준). 별칭 4종(`EXEMPTION_*_THRESHOLD_*` 등) 영구 제거(인계 2). (6) 부트스트랩 가드 2-A 추가 (`HEAVY_TAX_RATE_ADDITION`·`findHeavyTaxRateAddition` 미로드 차단). (7) issueFlag 카탈로그 25종 (v0.2.1 18 + 신규 5 + 보조 3 − 폐기 1). (8) v0.1·v0.2 회귀 안전성 보존 (TC-001~010 모두 그대로 회귀 통과). (9) **TC-011~014 검증 통과 (5/2 KPI 100%)**.** |
+| **v0.3-A** | **2026-05-02** | **작업 창 #11 산출.** (1) 노출 멤버 1종 신규: `isHeavyTaxationApplicable(caseData, intermediates)`. v0.2.1 20종 + 1 = 21종. (2) 단계 4 변경: 다주택 중과 발동 시 `longTermDeduction = 0` 강제 (제95조 ② 단서). 함수 시그니처에 `intermediates` 인자 추가. 출력 필드 2종 추가(`isHeavyTaxation`·`heavyRateAddition`). (3) 단계 9 변경: 중과 적용 + 보유 ≥ 2년 → 누진 구간 누적 세액 동적 재계산. 중과 적용 + 보유 < 2년 → max 비교 (제104조 ⑦ 본문 단서). 출력 필드 2종 추가(`shortTermTax`·`heavyProgressiveTax`). (4) `result.steps`에 v0.3-A 신규 필드 4종 추가 (총 27종). (5) `tax_rules.js` 의존 19종 (v0.2.1 17종 + v0.3-A 신규 2종 — 정본 명칭 기준). 별칭 4종(`EXEMPTION_*_THRESHOLD_*` 등) 영구 제거(인계 2). (6) 부트스트랩 가드 2-A 추가 (`HEAVY_TAX_RATE_ADDITION`·`findHeavyTaxRateAddition` 미로드 차단). (7) issueFlag 카탈로그 25종 (v0.2.1 18 + 신규 5 + 보조 3 − 폐기 1). (8) v0.1·v0.2 회귀 안전성 보존 (TC-001~010 모두 그대로 회귀 통과). (9) **TC-011~014 검증 통과 (5/2 KPI 100%)**. |
+| **v0.3-B** | **2026-05-05** | **본 버전. 작업 창 #15 산출.** v0.3-A 모듈 스펙 (733줄) 베이스 + v0.3-B 신규 영역 통합. **순수 추가 패치 (addition-only)** — v0.3-A 21종 노출 멤버 시그니처·반환 형식 변경 0건. 13단계 단일 양도 파이프라인 본문 변경 0건. (1) 제목·메타데이터 표 v0.3-B 갱신 (의사결정 #13 인용 추가). (2) §0 변경 요약 v0.3-B 영역 신설 (v0.3-A → v0.3-B 변경 영역 일람 + 회귀 안전성 영역). (3) §0-A v0.2.1 → v0.3-A 변경 요약 본문 인용으로 보존 (회귀 안전성 정본). (4) §0-3 v0.3-B 인계 영역 추가 (시나리오 엔진 + 본질 가치 4영역). (5) §2 노출 멤버 21종 → **23종** (`findProgressiveTaxAmount` + `findHeavyProgressiveTaxAmount` 공개 노출 신규 2종 — 사용자 결정 옵션 (A) 채택). (6) §4-2-2-B `result.steps` 신규 4종 추가 (`saleYear`·`finalCalculatedTax`·`finalReturnMethod`·`finalReturnDiff`) → 27종 → **31종**. (7) §4-2-3 `terminateAt2=true` 시 v0.3-B 신규 4종 정책 영속화. (8) **§5-7 신규 §섹션 — 확정신고 v3 산식 5단계 본문 영속화** (사용자 결정 옵션 (A) 채택, 명세서 v0.3-B §5-7-3 단일 진본 인용): §5-7-1 §섹션 영역 + §5-7-2 법령 본문 (법 제104조 ⑤) + §5-7-3 5단계 산식 (`groupByTaxYear` + `calculateClause1AggregateProgressive` + `calculateClause2PerTransferWithDanSeo` + `applyFinalReturnV3` + `distributeFinalTaxByShare`) + §5-7-4 호출 위치 (시나리오 엔진 측 인계) + §5-7-5 v0.3-A 회귀 안전성 산식 증명 (단일 양도 입력 시 `SINGLE_TRANSFER` 분기) + §5-7-6 v0.3-B 신규 검증 영역 (TC-S05·S06·S07 정답값 xlsx 시트 19 직접 인용) + §5-7-7 issueFlag 신규 2종. (9) §5-8 (구 §5-7) 단계 11·12·13 §섹션 명명 이동. (10) §6-B issueFlag 카탈로그 25종 → **27종** (`FINAL_RETURN_AGGREGATE_PROGRESSIVE_APPLIED` + `FINAL_RETURN_DAN_SEO_APPLIED` 신규 2종, 발동 조건 상호 배타). (11) `ENGINE_VERSION` `"v0.3.0-A"` → `"v0.3.0-B"`. (12) **5/4 합의 결정 5건 모두 채택** — 결정 1 (`getRateGroupKey` 정수 키 — B-022 부동소수점 회피), 결정 2 (clause2 단서 산식 v0.3-A 누적 baseTax 그대로), 결정 3 (`applyFinalReturnV3` `length === 1` → `SINGLE_TRANSFER` 분기 — 회귀 안전성), 결정 4 (issueFlag 신규 2종), 결정 5 (`ENGINE_VERSION` "v0.3.0-B" 채택). (13) 의사결정 #13 (확정신고 v3 산식 — 법 제104조 ⑤ 정확본) 본문 직접 인용 + 의사결정 #11 (정확성 > 속도) 시간 제약 표기 없음. (14) **사용자 39번째 짚음 정정 영역**: 시행령 제167조의10은 다주택 중과 자산 정의 조문일 뿐 — `LAW_REFS.finalReturnAggregation` 영역에서 시행령 제167조의10 인용 0건. (15) **인계 처리**: B-022 (정수 처리 — `getRateGroupKey` 영역에서 부동소수점 회피용), B-024 (일시적 2주택 — post-MVP), B-028~B-031 (본질 가치 4영역 — post-MVP), B-032 (결과 객체 구조 — v0.3-B 범위 외, v0.2.1·v0.3-A 그대로 계승), B-033 (자동 조정대상지역 판정). **(16) v0.3-A → v0.3-B 패치 라인 추정 약 +250~+350 라인** (확정신고 v3 산식 5단계 본문 + 누진 산출 헬퍼 공개 노출 + `result.steps` 4종 + issueFlag 2종 + `ENGINE_VERSION` 1라인). |
 
 ---
 
@@ -647,7 +1112,9 @@ if (typeof window.TaxOpt.taxRules.HEAVY_TAX_RATE_ADDITION === 'undefined' ||
 
 ---
 
-## 부록 A. 자체 검증 결과 (v0.3-A 모듈 스펙)
+## 부록 A. 자체 검증 결과 (v0.3-A 모듈 스펙 — 본문 그대로 보존)
+
+본 부록 A는 v0.3-A 모듈 스펙 산출 직후 작업 창 #11이 수행한 자체 검증 5건 결과. v0.3-B 합본에서도 본 부록 A 본문은 그대로 보존된다 (v0.3-A 회귀 안전성 정본).
 
 본 모듈 스펙(tax_engine.md v0.3-A) 작성 후 다음 5건을 자체 검증한다 (Gim 사용자 시스템 프롬프트 §3 객관적·비판적 관점, 의사결정 #11 정확성 우선).
 
@@ -729,5 +1196,108 @@ v0.3-A 신규 케이스 4건의 산출세액이 본 모듈 스펙 산식으로 �
 검증 결과: **4건 모두 본문 또는 issueFlag로 명시 처리 완료**. 사용자 보고 시 명시.
 
 ---
+
+## 부록 B. 자체 검증 결과 (v0.3-B 모듈 스펙 — 작업 창 #15 신규)
+
+본 부록 B는 v0.3-B 모듈 스펙 산출 직후 작업 창 #15가 수행한 자체 검증 5건 결과.
+
+### B-1. 백로그 정합성 (v0.3-B 신규 인계 영역 정독 후 매핑)
+
+| 백로그 ID | 본 모듈 스펙 v0.3-B 인용 위치 | 정합성 |
+|---|---|---|
+| **B-022** (정수 처리 — 절사 vs 반올림) | §5-7-3 3단계 `getRateGroupKey` 정수 키 (Math.round 패턴) | ✅ 5/4 합의 결정 1번 — 부동소수점 회피용. v0.3-A 절사 정책 그대로 보존 (Math.floor) |
+| **B-024** (일시적 2주택) | §0-3 인계 영역 | ✅ post-MVP 인계 (명세서 §1-4 옵션 (나) 미포함 그대로) |
+| **B-028~B-031** (본질 가치 4영역) | §0-3 인계 영역 | ✅ post-MVP 인계 (명세서 §1-2 정본) |
+| **B-032** (결과 객체 구조) | §0-3 인계 영역 | ✅ v0.3-B 범위 외, v0.2.1·v0.3-A 패턴 그대로 계승. post-MVP 처리 |
+| **B-033** (자동 조정대상지역 판정) | §0-3 인계 영역 | ✅ post-MVP, 본 v0.3-B 영향 없음 |
+
+### B-2. 명세서 v0.3-B 인용 정합성 (§5-7·§9 정독 후 인용)
+
+| 본 모듈 스펙 §X | 명세서 v0.3-B §Y 정독 후 인용 |
+|---|---|
+| §0 변경 요약 (v0.3-A → v0.3-B) | 명세서 §12-1 (변경 요약) + 의사결정 #13 본문 |
+| §2 신규 노출 2종 (`findProgressiveTaxAmount` + `findHeavyProgressiveTaxAmount`) | 명세서 §5-7-3 2·3단계 본문 — 호출 의존 |
+| §4-2-2-B 신규 4종 필드 | 명세서 §5-7-3 1·4·5단계 본문 — `saleYear` (1단계 그룹화 키) + `finalCalculatedTax` (5단계 분배 결과) + `finalReturnMethod` (4단계 selection) + `finalReturnDiff` (4단계 차이) |
+| §5-7 5단계 산식 본문 | 명세서 §5-7-3 1·2·3·4·5단계 본문 직접 인용 |
+| §5-7-2 법령 본문 | 명세서 §5-7-2 법 제104조 ⑤ 정확본 인용 그대로 |
+| §5-7-4 호출 위치 (시나리오 엔진 측 인계) | 명세서 §5-7-4 본문 + 사용자 결정 옵션 (A) 본문 영속화 |
+| §5-7-5 회귀 안전성 산식 증명 | 명세서 §5-7-5 본문 + 의사결정 #13 회귀 안전성 영역 |
+| §5-7-6 v0.3-B 신규 검증 영역 | xlsx 시트 19 (산식정정_v3) 본문 직접 인용 |
+| §6-B issueFlag 신규 2종 | 명세서 §5-7-6 + §9-2 표 12·13번째 행 본문 |
+
+### B-3. v0.3-A 회귀 안전성 검증 (TC-001~014 14건 보존 — 절대 깨지면 안 됨)
+
+| 항목 | 검증 결과 |
+|---|---|
+| v0.3-A 21종 노출 멤버 시그니처·반환 형식 보존 | ✅ §2 표 명시 (`ENGINE_VERSION` 1라인 갱신만 예외) |
+| 13단계 단일 양도 파이프라인 본문 변경 0건 | ✅ §0-1 표 명시 — 양도 1건당 산식은 v0.3-A 그대로 |
+| `result.steps` 27종 그대로 보존 + v0.3-B 신규 4종 추가 | ✅ §4-2-2-B 영속화 |
+| issueFlag 25종 그대로 보존 + v0.3-B 신규 2종 추가 | ✅ §6-B-2 카탈로그 표 27종 검산 통과 |
+| 단일 양도 입력 시 `applyFinalReturnV3` `length === 1` → `SINGLE_TRANSFER` 분기 | ✅ §5-7-5 산식 증명 영속화 |
+| `finalCalculatedTax = calculatedTax` 그대로 (단일 양도 분기) | ✅ §5-7-3 5단계 `distributeFinalTaxByShare` 함수 본문 영속화 |
+| TC-001~014 14건 totalTax 100% 일치 | ✅ §5-7-5 산식 증명 + 의사결정 #13 회귀 안전성 영역 |
+
+### B-4. v0.3-B 신규 영역 검증
+
+| 명세서 §X / 본 모듈 §Y 검증 항목 | 본 모듈 스펙 매핑 |
+|---|---|
+| §5-7-3 1단계 `groupByTaxYear` | §5-7-3 1단계 함수 계약 + 의사코드 |
+| §5-7-3 2단계 `calculateClause1AggregateProgressive` (1호 합산 누진) | §5-7-3 2단계 함수 계약 + 의사코드 + 가산세율 미적용 사유 |
+| §5-7-3 3단계 `calculateClause2PerTransferWithDanSeo` (2호 단독 + 단서) | §5-7-3 3단계 함수 계약 + 의사코드 + `getRateGroupKey` 정수 키 헬퍼 + 5/4 합의 결정 1·2번 본문 |
+| §5-7-3 4단계 `applyFinalReturnV3` (MAX selection) | §5-7-3 4단계 함수 계약 + 의사코드 + 5/4 합의 결정 3번 본문 (`length === 1` 분기) |
+| §5-7-3 5단계 `distributeFinalTaxByShare` (양도별 비례 분배) | §5-7-3 5단계 함수 계약 + 의사코드 + 부수효과 영역 + Math.floor 정책 |
+| §5-7-4 호출 위치 | §5-7-4 의사코드 + 호출 측 책임 영역 인계 |
+| §5-7-6 검증 영역 (TC-S05·S06·S07) | §5-7-6 표 + xlsx 시트 19 본문 직접 인용 |
+| issueFlag 신규 2종 | §6-B-1·§6-B-2·§6-B-3 |
+
+### B-5. 자체 발견 짚을 부분 (3건)
+
+본 모듈 스펙 v0.3-B 작성 중 발견한 짚을 부분 3건.
+
+#### 짚을 부분 B-1: `findCalculatedTax` mutation 영역 — `result.steps` 불변성 약속 예외
+
+- **현상**: §5-7-3 5단계 `distributeFinalTaxByShare`는 `result.steps.finalCalculatedTax` 필드를 mutation한다. 본 모듈 §7 불변성 약속 (v0.2.1 + v0.3-A) 영역에서는 `calculateSingleTransfer`가 결과 객체를 1회 생성 후 변경하지 않는 정책이었다.
+- **본 모듈 스펙 처리**: §5-7-3 5단계 본문에 mutation 영역을 명시. 호출 측 (`scenario_engine.js`)은 본 mutation을 인지한 후 `localIncomeTax`·`totalTax`·`netAfterTaxSaleAmount`·`effectiveTaxRate` 재산출. 본 mutation은 v0.3-B 산식 5단계 처리 후 1회만 허용 (예외 영역).
+- **후속 확인 필요**: §7 불변성 약속 §섹션에 v0.3-B 예외 영역 명시 추가 권고 (작업 창 #16 작업지시서 v0.3-B 진입 시점).
+
+#### 짚을 부분 B-2: `findProgressiveTaxAmount` + `findHeavyProgressiveTaxAmount` 공개 노출의 v0.3-A 회귀 영향
+
+- **현상**: 본 2종은 v0.3-A에서 단계 9 내부 함수로 동작했으나 노출되지 않았음. v0.3-B에서 §5-7 산식 5단계가 본 함수를 호출해야 하므로 공개 노출로 격상.
+- **본 모듈 스펙 처리**: §2 본문에 공개 노출 격상 사유 명시. 시그니처·반환값 변동 0건이므로 v0.3-A 회귀 영향 0건.
+- **후속 확인 필요**: Claude Code 산출 단계 (작업 창 #16) 진입 시 v0.3-A `tax_engine.js` 본문에서 본 2종 함수가 IIFE 외부에서 호출 가능한지 확인. 호출 가능하지 않으면 노출 격상 패치 영역 1건 추가 (v0.3-B 코드 변경 라인 +5~+10).
+
+#### 짚을 부분 B-3: `finalCalculatedTax` 분배 후 합계 vs `finalReturnTax` 차이 (Math.floor 누적 손실)
+
+- **현상**: §5-7-3 5단계 `distributeFinalTaxByShare`는 `Math.floor` 적용으로 분배 후 `Σ finalCalculatedTax`가 `finalReturnTax`보다 약간 작을 수 있음 (최대 N−1원, N = 양도 개수). xlsx 시트 19 검증 결과 — TC-S06 SC-3에서 −1원 차이 발생.
+- **본 모듈 스펙 처리**: §5-7-3 5단계 본문에 분배 후 합계 vs 원본 합계 차이 영역 명시. 본 차이는 v3 산식 본문의 정합 영역 (Math.floor 정책 그대로). 호출 측은 본 차이를 issueFlag로 표시 미고려 (검증 영역).
+- **후속 확인 필요**: post-MVP 단계에서 분배 정책 재검토 시 (예: 마지막 양도에 잔여 1원 보정) 본 영역 갱신 필요.
+
+### B-6. 인용 자료 미비 — 없음
+
+본 모듈 스펙 v0.3-B 작성 중 인용한 자료는 모두 프로젝트 지식에 영속화된 정본 (명세서 v0.3-B, v0.3-A 모듈 스펙, 의사결정 #13, 소득세법 PDF, xlsx 시트 14·17·19)이며 미비 항목 없음.
+
+### B-7. 자체 sanity 검증
+
+| 항목 | 결과 |
+|---|---|
+| §2 v0.3-B 노출 멤버 카운트 (v0.3-A 21종 + v0.3-B 2종 = 23종) | ✅ 23종 |
+| §4-2-2-B v0.3-B 신규 4종 카운트 (`saleYear`·`finalCalculatedTax`·`finalReturnMethod`·`finalReturnDiff`) | ✅ 4종 |
+| §5-7-3 산식 5단계 카운트 (`groupByTaxYear` + `calculateClause1AggregateProgressive` + `calculateClause2PerTransferWithDanSeo` + `applyFinalReturnV3` + `distributeFinalTaxByShare`) | ✅ 5단계 |
+| §6-B-2 issueFlag 카탈로그 27종 검산 (10 + 8 + 5 + 3 − 1 + 2 = 27) | ✅ 27종 |
+| `ENGINE_VERSION` 갱신값 (`"v0.3.0-B"`) | ✅ 의사결정 #13 영속화 그대로 |
+| 강조어 "본격" 사용 횟수 (1답변 1~2회 한도) | ✅ v0.3-B 신규 영역 0회 (잔존은 v0.3-A 베이스 본문 그대로) |
+| 시행령 제167조의10 인용 횟수 (`LAW_REFS.finalReturnAggregation` 영역 0건) | ✅ §5-7-2 본문 정정 영역에서 정정 명시. `LAW_REFS.heavyTaxation` 영역만 인용 (v0.3-A 본문 그대로 보존) |
+| 추측 표기 횟수 | ✅ 0건 |
+| 5/4 합의 결정 5건 채택 영속화 | ✅ §5-7-3 (결정 1·2·3) + §6-B (결정 4) + §10 (결정 5) |
+
+### B-8. 차단 사항
+
+본 모듈 스펙 v0.3-B 작성 완료. 차단 사항 0건.
+
+후속 작업 창(#16 작업지시서 v0.3-B — `tax_rules.js` + `tax_engine.js` v0.3-B 패치) 진입 가능 상태. 산식 5단계 본문은 본 §5-7 단일 진본을 그대로 코드로 옮긴다.
+
+---
+
+본 문서는 v0.3-B 명세서가 변경되지 않는 한 함께 변경되지 않는다. post-MVP 단계에서 본질 가치 4영역(B-028~B-031) 도입 또는 시나리오 엔진 (`scenario_engine.md` v0.3-B 신규 작성) 진입 시 별도 갱신.
 
 (끝)

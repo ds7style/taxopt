@@ -865,6 +865,210 @@ v0.3-A의 단일 effectiveTaxRate는 `result.metrics.effectiveTaxRate = totalTax
 
 > **TYPE_1_WHICH_ONE에서의 effectiveTaxRate**: TYPE_1은 양도 1건 시나리오이므로 `Σ` 합산이 본질적으로 단일 값. v0.3-A의 `result.metrics.effectiveTaxRate`와 동일한 값이 산출됨.
 
+### 5-7. 확정신고 누진 적용 v3 — 법 제104조 ⑤ 정확본 (사용자 38·39번째 짚음 정정)
+
+#### 5-7-1. 본질 영역
+
+소득세법 제103조·제105조에 따라 **동일 과세기간(과세연도) 다중 양도 시 확정신고 산식 본격 적용 필요**. 시나리오 시뮬레이션 후 양도 결과를 연도별 그룹화하여 각 연도별로 법 제104조 ⑤ 적용.
+
+본 영역은 v0.3-B 신규 본격 처리. v0.3-A까지는 양도 1건별 단독 산출세액(예정신고 산식)만 적용.
+
+#### 5-7-2. 법 제104조 ⑤ 본문 (정확본 인용)
+
+> ⑤ 해당 과세기간에 제94조제1항제1호·제2호 및 제4호에서 규정한 자산을 둘 이상 양도하는 경우 양도소득 산출세액은 다음 각 호의 금액 중 큰 것으로 한다.
+> 1. 해당 과세기간의 양도소득과세표준 합계액에 대하여 제55조제1항에 따른 세율을 적용하여 계산한 양도소득 산출세액
+> 2. 제1항부터 제4항까지 및 제7항의 규정에 따라 계산한 자산별 양도소득 산출세액 합계액. 다만, 둘 이상의 자산에 대하여 제1항 각 호, 제4항 각 호 및 제7항 각 호에 따른 세율 중 동일한 호의 세율이 적용되고, 그 적용세율이 둘 이상인 경우 해당 자산에 대해서는 각 자산의 양도소득과세표준을 합산한 것에 대하여 제1항·제4항 또는 제7항의 각 해당 호별 세율을 적용하여 산출한 세액 중에서 큰 산출세액의 합계액으로 한다.
+
+#### 5-7-3. v3 산식 본격 (3단계)
+
+##### 1단계: 연도별 그룹화 (`groupByTaxYear`)
+
+```js
+function groupByTaxYear(perTransferResults) {
+  const groups = new Map();
+  for (const r of perTransferResults) {
+    const year = r.saleYear; // 양도일 속하는 과세연도
+    if (!groups.has(year)) groups.set(year, []);
+    groups.get(year).push(r);
+  }
+  return groups;
+}
+```
+
+##### 2단계: 1호 합산 누진 (모든 자산 포함)
+
+```js
+function calculateClause1AggregateProgressive(perTransferResultsSameYear) {
+  // 모든 자산 과세표준 합산
+  const totalTaxBase = perTransferResultsSameYear.reduce(
+    (sum, r) => sum + r.taxBase, 0
+  );
+  
+  // 제55조제1항 일반 누진세율 1회 적용 (중과세율 미적용)
+  return findProgressiveTaxAmount(totalTaxBase);
+}
+```
+
+##### 3단계: 2호 단독 합계 + 단서 (동일 호 세율 자산 ≥ 2 합산)
+
+```js
+function calculateClause2PerTransferWithDanSeo(perTransferResultsSameYear) {
+  // 그룹화: heavyRateAddition 별 (0.0=일반, 0.20=2주택, 0.30=3주택)
+  const byHeavyAddition = new Map();
+  for (const r of perTransferResultsSameYear) {
+    const key = r.heavyRateAddition;
+    if (!byHeavyAddition.has(key)) byHeavyAddition.set(key, []);
+    byHeavyAddition.get(key).push(r);
+  }
+  
+  let total = 0;
+  for (const [addition, group] of byHeavyAddition.entries()) {
+    if (group.length >= 2) {
+      // 단서 발동: 동일 호 세율 자산 ≥ 2 → 합산 후 호별 세율
+      const sumBase = group.reduce((s, r) => s + r.taxBase, 0);
+      const aggregatedInGroup = (addition === 0.0)
+        ? findProgressiveTaxAmount(sumBase)
+        : findHeavyProgressiveTaxAmount(sumBase, addition);
+      const sumSolo = group.reduce((s, r) => s + r.calculatedTax, 0);
+      // MAX(합산 결과, 단독 합계) 그룹별 채택
+      total += Math.max(aggregatedInGroup, sumSolo);
+    } else {
+      // 단일 자산: 단독 그대로
+      total += group[0].calculatedTax;
+    }
+  }
+  return total;
+}
+```
+
+##### 4단계: MAX(1호, 2호) 채택 + 양도별 totalTax 비례 분배
+
+```js
+function applyFinalReturnV3(perTransferResultsSameYear) {
+  if (perTransferResultsSameYear.length === 0) {
+    return { finalReturnTax: 0, method: "NONE", diff: 0 };
+  }
+  
+  if (perTransferResultsSameYear.length === 1) {
+    const r = perTransferResultsSameYear[0];
+    return {
+      finalReturnTax: r.calculatedTax,
+      method: "SINGLE_TRANSFER",
+      diff: 0,
+    };
+  }
+  
+  // 1호·2호 산출
+  const clause1Tax = calculateClause1AggregateProgressive(perTransferResultsSameYear);
+  const clause2Tax = calculateClause2PerTransferWithDanSeo(perTransferResultsSameYear);
+  
+  // 자산별 단독 합계 (예정신고 비교 영역)
+  const perTransferTotal = perTransferResultsSameYear.reduce(
+    (s, r) => s + r.calculatedTax, 0
+  );
+  
+  // MAX 채택
+  const finalReturnTax = Math.max(clause1Tax, clause2Tax);
+  const method = (finalReturnTax === clause1Tax)
+    ? "CLAUSE_1_AGGREGATE_PROGRESSIVE"
+    : "CLAUSE_2_PER_TRANSFER_WITH_DAN_SEO";
+  
+  return {
+    finalReturnTax,
+    method,
+    diff: finalReturnTax - perTransferTotal,
+    aggregateTaxClause1: clause1Tax,
+    aggregateTaxClause2: clause2Tax,
+    perTransferTax: perTransferTotal,
+  };
+}
+```
+
+##### 5단계: 양도별 `finalCalculatedTax` 비례 분배
+
+```js
+function distributeFinalTaxByShare(perTransferResultsSameYear, finalReturnResult) {
+  if (finalReturnResult.method === "SINGLE_TRANSFER") {
+    perTransferResultsSameYear[0].finalCalculatedTax = 
+      finalReturnResult.finalReturnTax;
+    return;
+  }
+  
+  const totalCalc = perTransferResultsSameYear.reduce(
+    (s, r) => s + r.calculatedTax, 0
+  );
+  
+  if (totalCalc === 0) {
+    for (const r of perTransferResultsSameYear) r.finalCalculatedTax = 0;
+    return;
+  }
+  
+  for (const r of perTransferResultsSameYear) {
+    const share = r.calculatedTax / totalCalc;
+    r.finalCalculatedTax = Math.floor(finalReturnResult.finalReturnTax * share);
+  }
+}
+```
+
+#### 5-7-4. 호출 위치 — `simulateScenarioWithStateTransition` 보강
+
+`simulateScenarioWithStateTransition` (§5-4) 함수 끝에서 다음 단계 추가:
+
+```js
+function simulateScenarioWithStateTransition(scenario, caseData) {
+  // 기존 본문: 양도별 calculateSingleTransfer 호출 + 상태전이
+  const perTransferResults = [...]; // 기존 처리
+  
+  // ★ v0.3-B 신규: 확정신고 누진 적용 v3
+  const yearGroups = groupByTaxYear(perTransferResults);
+  const finalReturnSummary = new Map();
+  
+  for (const [year, results] of yearGroups.entries()) {
+    const fr = applyFinalReturnV3(results);
+    finalReturnSummary.set(year, fr);
+    distributeFinalTaxByShare(results, fr);
+  }
+  
+  // 양도별 totalTax 재산출 (finalCalculatedTax 기준)
+  for (const r of perTransferResults) {
+    r.localIncomeTax = Math.floor(r.finalCalculatedTax * 0.10);
+    r.totalTax = r.finalCalculatedTax + r.localIncomeTax;
+    r.netAfterTaxSaleAmount = r.expectedSalePrice - r.totalTax;
+    r.effectiveTaxRate = r.expectedSalePrice > 0 
+      ? r.totalTax / r.expectedSalePrice : 0;
+  }
+  
+  return {
+    perTransferResults,
+    finalReturnSummary: Object.fromEntries(finalReturnSummary),
+    // ... 기존 반환 영역
+  };
+}
+```
+
+#### 5-7-5. v0.3-A 회귀 안전성
+
+| 영역 | 처리 |
+|---|---|
+| 단일 양도 (TC-001~014) | `applyFinalReturnV3` 호출 시 `length === 1` → `SINGLE_TRANSFER` 분기 → 기존 calculatedTax 그대로 → **회귀 보존** |
+| 시나리오 1개 시나리오 | 동일 (단일 양도 동등) |
+| 본 산식 도입은 v0.3-A 단일 양도 영역 영향 없음 | KPI 5자 일치 100% 누적 14건 보존 보장 |
+
+#### 5-7-6. issueFlag 신규
+
+| issueFlag | 발동 조건 | 안내 본문 |
+|---|---|---|
+| `FINAL_RETURN_AGGREGATE_PROGRESSIVE_APPLIED` | TYPE_2_ORDER 또는 TYPE_3_TIMING 시나리오에서 `method === "CLAUSE_1_AGGREGATE_PROGRESSIVE"` 발동 | 동일 과세기간 다중 양도로 합산 누진 적용. 자산별 단독보다 큼 → 1호 채택 |
+| `FINAL_RETURN_DAN_SEO_APPLIED` | `method === "CLAUSE_2_PER_TRANSFER_WITH_DAN_SEO"` + 단서 발동 (동일 호 세율 자산 ≥ 2) | 동일 세율 자산 합산 단서 적용. MAX(합산, 단독) 채택 |
+
+§9-2 표 끝에 12·13번째 행 추가.
+
+#### 5-7-7. 검증 케이스
+
+- TC-S05·TC-S06: 모든 시나리오 method = `CLAUSE_2_PER_TRANSFER_WITH_DAN_SEO` (다주택 중과 적용)
+- TC-S07 (과세기간 분산): 동일 연도는 v3 적용, 분산 연도는 SINGLE_TRANSFER
+- 1호 채택 발동 케이스: 모든 자산 일반과세 + 양도차익 작은 케이스 (검증팀 본격 검증 권고)
+
 ---
 
 ## 6. 시나리오 비교 정렬 (의사결정 #10 D안 + 보강 4건)

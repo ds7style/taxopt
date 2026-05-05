@@ -1,29 +1,78 @@
-# tax_rules.js 모듈 스펙 v0.3-A
+# tax_rules.js 모듈 스펙 v0.3-B
 
 | 항목 | 내용 |
 |---|---|
 | 문서 ID | `docs/v0.3/modules/tax_rules.md` |
-| 버전 | v0.3-A (다주택 중과 가산세율 룩업 활성, 시나리오 엔진 미포함) |
-| 상태 | 작성 완료 (2026-05-02, 작업 창 #11) |
-| 작성 출처 | 작업 창 #11 (v0.3-A 모듈 스펙 — tax_rules.md + tax_engine.md 통합 갱신) |
-| 대상 코드 | `js/tax_rules.js` (v0.2.0 → v0.3-A 패치 대상, 본 모듈 스펙은 .js 본문 산출 금지 — 의사결정 #9 v9) |
-| 대상 테스트 | `tests/tax_rules.test.js` (v0.2.0 → v0.3-A 패치 대상) |
-| 관련 작업지시서 | `docs/05_code_work_orders/05_tax_rules_v0_3_a.md` (작업 창 #12 산출 예정) |
-| 관련 명세서 | `docs/v0.3/01_calc_engine_spec.md` v0.3-A (✅ 검증 통과, KPI 100%, 2026-05-02) |
-| 호출 측 모듈 스펙 | `docs/v0.3/modules/tax_engine.md` v0.3-A (단계 4·9 변경 + 가산세율 룩업 호출 — 본 작업 창 동시 산출) |
-| 관련 골든셋 | `docs/v0.3/06_test_cases.md` v0.3-A (TC-006~010 v0.2 회귀 + TC-011~014 v0.3-A 신규, 검증 후 갱신 예정) |
-| 이전 버전 | v0.2.0 (`docs/v0.2/modules/tax_rules.md`, 5/2 KPI 100% 검증 통과) |
-| 다음 버전 | v0.3-B (시나리오 엔진 도입), post-MVP (시행령 제167조의10·11 단서·자동 조정대상지역 판정) |
-| 관련 의사결정 | `docs/99_decision_log.md` #1 (중과 유예 처리), #5 강화 (법령 개정 대응 아키텍처 — §0-1), #6 (영속화 의무), #9 v9 (.js 본문 산출 금지), #11 (정확성 > 속도), #12 (모듈 스펙 v0.3-A 정본화) |
-| 관련 백로그 | B-018 (5/7 발표 PT 보조 슬라이드), B-020 (의사결정 #5 강화 — 명세서 §0-1 본 모듈 적용), B-021 (법제처 OpenAPI 활용 검토 — §7 시행일별 다중 규칙 패턴 인계), B-022 (양도소득세 정수 처리 — v0.3-A 무영향), B-023 (양도소득세 부칙·경과규정 본격 반영 — §11-6 TR-08 인계 + 강남3구·용산 한시 유예 미처리), B-024 (일시적 2주택 — v0.3-A 미포함 결정), B-032 (결과 객체 구조 — v0.3-A 범위 외, 호출 측 tax_engine.md v0.3-A 책임), B-033 (자동 조정대상지역 판정 — post-MVP 인계, B-021 통합) |
+| 버전 | v0.3-B (다주택 중과 가산세율 룩업 + 확정신고 v3 산식 영역 LAW_REFS 1키 추가) |
+| 상태 | 작성 완료 (2026-05-05, 작업 창 #15) |
+| 작성 출처 | 작업 창 #15 (v0.3-B 모듈 스펙 합본 산출 — `tax_rules.md` + `tax_engine.md` v0.3-B 통합) |
+| 대상 코드 | `js/tax_rules.js` (v0.3-A → v0.3-B 패치 대상, 본 모듈 스펙은 .js 본문 산출 금지 — 의사결정 #9 v9) |
+| 대상 테스트 | `tests/tax_rules.test.js` (v0.3-A → v0.3-B 패치 대상 — RULE_VERSION strict-eq 1라인 갱신만) |
+| 관련 작업지시서 | `docs/05_code_work_orders/v0_3_B/` (작업 창 #16 산출 예정 — 의사결정 #9 v9) |
+| 관련 명세서 | `docs/v0.3/02_calc_engine_spec.md` v0.3-B (시나리오 엔진 + 상태전이 + 확정신고 v3 산식, ⏳ 검증 대기) |
+| 호출 측 모듈 스펙 | `docs/v0.3/modules/tax_engine.md` v0.3-B (단계 4·9 + 확정신고 v3 산식 5단계 신규 §5-7 — 본 작업 창 동시 산출) |
+| 관련 골든셋 | `docs/v0.3/06_test_cases.md` v0.3-B (TC-001~014 v0.3-A 회귀 + TC-S01~S07 v0.3-B 신규, 검증 후 갱신 예정) |
+| 이전 버전 | v0.3-A (`docs/v0.3/modules/tax_rules.md` 1,147줄, 5/2 KPI 100% 검증 통과) |
+| 다음 버전 | post-MVP (시행령 제167조의10·11 단서·자동 조정대상지역 판정·본질 가치 4영역 B-028~B-031) |
+| 관련 의사결정 | `docs/99_decision_log.md` #1 (중과 유예 처리), #5 강화 (법령 개정 대응 아키텍처 — §0-1), #6 (영속화 의무), #9 v9 (.js 본문 산출 금지), #10 D안 (시나리오 비교 정렬 — `tax_engine.md` 책임), #11 (정확성 > 속도), #12 (모듈 스펙 v0.3-A 정본화), **#13 (확정신고 v3 산식 — 법 제104조 ⑤ 정확본, 본 v0.3-B 신규)** |
+| 관련 백로그 | B-018 (5/7 발표 PT 보조 슬라이드), B-020 (의사결정 #5 강화), B-021 (법제처 OpenAPI 활용 검토), B-022 (양도소득세 정수 처리 — v0.3-B 무영향), B-023 (양도소득세 부칙·경과규정 본격 반영), B-024 (일시적 2주택 — v0.3-B 미포함), B-028~B-031 (본질 가치 4영역 — post-MVP 인계), B-032 (결과 객체 구조 — v0.3-B 범위 외, 호출 측 `tax_engine.md` v0.3-B 책임), B-033 (자동 조정대상지역 판정 — post-MVP 인계, B-021 통합) |
 
 ---
 
-## 0. 변경 요약 (v0.2.0 → v0.3-A)
+## 0. 변경 요약 (v0.3-A → v0.3-B)
 
-본 모듈 스펙 v0.3-A는 **v0.2.0 본문 §1~§14를 모두 그대로 계승**하면서, **다주택 중과 가산세율 룩업** 영역만 신규 추가한다. v0.2.0의 24종 노출 멤버 시그니처·값은 모두 그대로 보존되며, v0.1 회귀 67건 + v0.2 회귀 83건(추정, baseline 150건) 모두 그대로 통과해야 한다.
+본 모듈 스펙 v0.3-B는 **v0.3-A 본문 §0~§부록을 모두 그대로 계승**하면서, **확정신고 v3 산식 영역의 rules 측 단일 책임 영역**만 신규 추가한다. v0.3-A의 26종 노출 멤버 시그니처·값은 모두 그대로 보존되며, v0.1 회귀 67건 + v0.2 회귀 83건 + v0.3-A 회귀 (TC-001~014 14건) 모두 그대로 통과해야 한다.
 
-### 0-1. v0.3-A 신규 영역 일람 (명세서 v0.3-A §0·§3·§9 인용)
+### 0-1. v0.3-B 신규 영역 일람 (명세서 v0.3-B §5-7 인용 + 의사결정 #13 본문)
+
+| 영역 | v0.3-A 동작 | v0.3-B 동작 | 본 모듈 스펙 §X |
+|---|---|---|---|
+| 노출 멤버 합계 | 26종 (v0.2 24 + v0.3-A 신규 2) | **26종 그대로** (rules 측 신규 노출 멤버 0종 — 산식·헬퍼는 engine 측 단일 책임) | §1-3, §2-2 |
+| `LAW_REFS` | 11종 (v0.2 10 + v0.3-A 신규 1) | + **`finalReturnAggregation`** (1키 추가, 멤버 수 카운트 미포함) | §3-6-2-B |
+| `RULE_VERSION` | `"v0.3.0-post-20260510"` | **`"v0.3.1-final-return-v3"`** (확정신고 v3 산식 정확 도입 — 의사결정 #13) | §3-6-1-B |
+| `selfTest()` | 7종 검증 (v0.2 6 + v0.3-A 1) | **그대로 7종** (확정신고 v3 산식 검증은 engine 측 selfTest 책임) | §9 |
+| `HEAVY_TAX_RATE_ADDITION` 룩업 | 2행 그대로 | 그대로 (변경 0건) | §3-A |
+| `findHeavyTaxRateAddition` 헬퍼 | 클램프 그대로 | 그대로 (변경 0건) | §4-A |
+| §3-B 신규 §섹션 | — | **신규** — rules 측 단일 책임 명시 (`finalReturnAggregation` LAW_REFS 1키만 추가, 산식 본문은 `tax_engine.md` v0.3-B §5-7 단일 진본) | §3-B |
+
+> **인터페이스 약속 (가장 중요)**: v0.3-A의 26종 노출 멤버는 모두 시그니처·값·반환 형식 그대로 유지. v0.3-B 패치는 **순수 추가**(addition-only)이며 v0.3-A·v0.2·v0.1 회귀 (TC-001~014 14건)를 깨지 않는다. **`tax_rules.js` v0.3-B 코드 변경 라인은 약 +5~+10 라인** (`RULE_VERSION` 1라인 + `LAW_REFS` 1키 추가).
+
+### 0-2. 본 모듈 스펙이 처리하지 않는 영역 (호출 측 모듈 스펙 위임)
+
+v0.3-A에서 위임된 영역은 **그대로 위임**. v0.3-B 신규 위임 영역 추가:
+
+| 영역 | 처리 모듈 스펙 |
+|---|---|
+| **(v0.3-A 그대로) 단계 4 변경 (중과 시 `longTermDeduction = 0`)** | `tax_engine.md` v0.3-B §5-A |
+| **(v0.3-A 그대로) 단계 9 변경 (중과 누진세율 + 가산세율 동적 재계산)** | `tax_engine.md` v0.3-B §5-A |
+| **(v0.3-A 그대로) 보유 < 2년 + 중과 max 비교** | `tax_engine.md` v0.3-B §5-A |
+| **(v0.3-A 그대로) `isHeavyTaxationApplicable`** | `tax_engine.md` v0.3-B §5-5 |
+| **(v0.3-A 그대로) 결과 객체 신규 4종 (v0.3-A) + 4종 (v0.3-B)** | `tax_engine.md` v0.3-B §4-A |
+| **(v0.3-A 그대로) issueFlag 25종 + v0.3-B 신규 2종** | `tax_engine.md` v0.3-B §6-A |
+| **(v0.3-A 그대로) 부트스트랩 가드 v0.3-A** | `tax_engine.md` v0.3-B §8-2-2 |
+| **(v0.3-B 신규) 확정신고 v3 산식 5단계 본문** (`groupByTaxYear`·`calculateClause1AggregateProgressive`·`calculateClause2PerTransferWithDanSeo`·`applyFinalReturnV3`·`distributeFinalTaxByShare`) | `tax_engine.md` v0.3-B §5-7 (신규 §섹션 — 사용자 결정 옵션 (A) 채택) |
+| **(v0.3-B 신규) 누진 산출 헬퍼 공개 노출** (`findProgressiveTaxAmount`·`findHeavyProgressiveTaxAmount`) | `tax_engine.md` v0.3-B §2 (engine 측 v0.3-B 신규 노출 2종) |
+
+> 본 모듈은 **법령 명시 숫자·표·임계의 단일 보유자**이며, 산식 흐름·결과 객체 구조·issueFlag 발동 조건은 모두 호출 측 `tax_engine.js` 책임 (§0-1 원칙 (3) 산식 흐름 분리). **v0.3-B에서도 동일 원칙 유지** — 확정신고 v3 산식은 engine 측 단일 책임.
+
+### 0-3. v0.3-A 회귀 안전성 (절대 깨지면 안 됨)
+
+| 영역 | v0.3-B 동작 |
+|---|---|
+| TC-001~014 14건 totalTax | v0.3-A 정답값 100% 일치 (engine 측 `applyFinalReturnV3`의 `length === 1` → `SINGLE_TRANSFER` 분기로 calculatedTax 그대로 — 의사결정 #13 회귀 안전성 영역) |
+| v0.3-A 노출 26종 시그니처·값·반환 형식 | 변경 0건 (`RULE_VERSION` 1라인 + `LAW_REFS` 1키만 예외) |
+| v0.2 회귀 150건 | 그대로 통과 (RULE_VERSION strict-eq 라인 1줄 갱신만 예외) |
+| v0.1 회귀 67건 | 그대로 통과 |
+
+> **회귀 깨지면 즉시 롤백**: 본 모듈 스펙이 정의한 v0.3-B 영역이 v0.3-A 결과를 보존하지 못하면 v0.3-B 마이그레이션 실패. 의사결정 #11 (정확성 > 속도) 적용.
+
+---
+
+## 0-A. v0.2.0 → v0.3-A 변경 요약 (v0.3-A 본문 인용 — 회귀 안전성 정본)
+
+본 §0-A는 v0.3-A 모듈 스펙 §0의 본문을 그대로 인용한다. v0.3-B 회귀 안전성 영역은 본 §0-A의 v0.3-A 보존 영역이 그대로 보존된다는 점에 의존한다.
+
+### 0-A-1. v0.3-A 신규 영역 일람 (명세서 v0.3-A §0·§3·§9 인용)
 
 | 영역 | v0.2.0 동작 | v0.3-A 동작 | 본 모듈 스펙 §X |
 |---|---|---|---|
@@ -34,19 +83,19 @@
 | `selfTest()` | 6종 검증 (continuity·integers·monotonic·longTermLookups + 메타 2종) | + **`verifyHeavyTaxRateAddition()`** (sanity 8건으로 확장) | §9-A |
 | `RULE_VERSION` | `"v0.2.0-post-20260510"` | **`"v0.3.0-post-20260510"`** (Claude Code 결정 권장) | §3-6-1-A |
 
-> **인터페이스 약속**: v0.2.0의 24종 노출 멤버는 모두 시그니처·값·반환 형식 그대로 유지. v0.3-A 패치는 **순수 추가**(addition-only)이며 v0.2 또는 v0.1 회귀를 깨지 않는다.
+> **v0.3-A 인터페이스 약속**: v0.2.0의 24종 노출 멤버는 모두 시그니처·값·반환 형식 그대로 유지. v0.3-A 패치는 **순수 추가**(addition-only)이며 v0.2 또는 v0.1 회귀를 깨지 않는다.
 
-### 0-2. 본 모듈 스펙이 처리하지 않는 영역 (호출 측 모듈 스펙 위임)
+### 0-A-2. 본 모듈 스펙이 처리하지 않는 영역 (v0.3-A 위임 — v0.3-B에서도 그대로 유지)
 
 | 영역 | 처리 모듈 스펙 |
 |---|---|
-| 단계 4 변경 (중과 시 `longTermDeduction = 0`, 제95조 ② 단서) | `tax_engine.md` v0.3-A §5-A |
-| 단계 9 변경 (중과 시 누진세율 + 가산세율 동적 재계산) | `tax_engine.md` v0.3-A §5-A |
-| 보유 < 2년 + 중과 max 비교 (제104조 ⑦ 본문 단서) | `tax_engine.md` v0.3-A §5-A |
-| `isHeavyTaxationApplicable(caseData, intermediates)` 4단계 조건 평가 | `tax_engine.md` v0.3-A §5-5 |
-| 결과 객체 신규 필드 4종 (`isHeavyTaxation`·`heavyRateAddition`·`shortTermTax`·`heavyProgressiveTax`) | `tax_engine.md` v0.3-A §4-A |
-| issueFlag 카탈로g v0.3-A 25종 (신규 5 + 보조 3 − 폐기 1) | `tax_engine.md` v0.3-A §6-A |
-| 부트스트랩 가드 v0.3-A (HEAVY_TAX_RATE_ADDITION·findHeavyTaxRateAddition 미로드 차단) | `tax_engine.md` v0.3-A §8-2-2 |
+| 단계 4 변경 (중과 시 `longTermDeduction = 0`, 제95조 ② 단서) | `tax_engine.md` v0.3-A/B §5-A |
+| 단계 9 변경 (중과 시 누진세율 + 가산세율 동적 재계산) | `tax_engine.md` v0.3-A/B §5-A |
+| 보유 < 2년 + 중과 max 비교 (제104조 ⑦ 본문 단서) | `tax_engine.md` v0.3-A/B §5-A |
+| `isHeavyTaxationApplicable(caseData, intermediates)` 4단계 조건 평가 | `tax_engine.md` v0.3-A/B §5-5 |
+| 결과 객체 신규 필드 4종 (`isHeavyTaxation`·`heavyRateAddition`·`shortTermTax`·`heavyProgressiveTax`) | `tax_engine.md` v0.3-A/B §4-A |
+| issueFlag 카탈로그 v0.3-A 25종 (신규 5 + 보조 3 − 폐기 1) | `tax_engine.md` v0.3-A/B §6-A |
+| 부트스트랩 가드 v0.3-A (HEAVY_TAX_RATE_ADDITION·findHeavyTaxRateAddition 미로드 차단) | `tax_engine.md` v0.3-A/B §8-2-2 |
 
 > 본 모듈은 **법령 명시 숫자·표·임계의 단일 보유자**이며, 산식 흐름·결과 객체 구조·issueFlag 발동 조건은 모두 호출 측 `tax_engine.js` 책임 (§0-1 원칙 (3) 산식 흐름 분리).
 
@@ -56,9 +105,9 @@
 
 ### 1-1. 목적
 
-본 문서는 `js/tax_rules.js` v0.3-A의 **계약 문서**다. 호출하는 측(`tax_engine.js` v0.3-A 등)이 본 모듈을 어떻게 사용해야 하는지, 본 모듈이 무엇을 보장하는지를 정의한다.
+본 문서는 `js/tax_rules.js` v0.3-B의 **계약 문서**다. 호출하는 측(`tax_engine.js` v0.3-B 등)이 본 모듈을 어떻게 사용해야 하는지, 본 모듈이 무엇을 보장하는지를 정의한다.
 
-코드 본문(`js/tax_rules.js`)과 본 문서가 충돌하면 **본 문서를 우선**한다. 코드 본문이 본 문서와 다르면 코드를 수정한다. 본 문서를 변경해야 하는 경우는 v0.3-A 명세서가 변경된 경우뿐이며, 그때는 명세서 → 본 문서 → 코드 순으로 갱신한다.
+코드 본문(`js/tax_rules.js`)과 본 문서가 충돌하면 **본 문서를 우선**한다. 코드 본문이 본 문서와 다르면 코드를 수정한다. 본 문서를 변경해야 하는 경우는 v0.3-B 명세서가 변경된 경우뿐이며, 그때는 명세서 → 본 문서 → 코드 순으로 갱신한다.
 
 ### 1-2. §0-1 법령 개정 대응 아키텍처 인용 (의사결정 #5 강화 + v0.3-A §0-1-2 옵션 (가) 채택)
 
@@ -89,20 +138,20 @@ v0.5+ 단계에서 다른 중과 케이스(예: 비사업용 토지 중과 +10%p
 
 ### 1-3. v0.2.0 → v0.3-A 변경 요약
 
-| 영역 | v0.2.0 | v0.3-A |
-|---|---|---|
-| 노출 멤버 | 24종 | **26종** (v0.2 24종 + v0.3-A 신규 2종) |
-| 신규 노출 — 룩업 테이블 | — | **`HEAVY_TAX_RATE_ADDITION`** (2행, 2주택·3주택 가산세율) |
-| 신규 노출 — 룩업 함수 | — | **`findHeavyTaxRateAddition(houseCount)`** (클램프: 3주택+ → 0.30) |
-| `LAW_REFS` | 10종 (v0.1 6 + v0.2 4) | + **`heavyTaxation`** 1키 (`"소득세법 제104조 제7항, 시행령 제167조의3·제167조의10·제167조의11"`) |
-| `selfTest()` | 6종 검증 | + **`verifyHeavyTaxRateAddition()`** (가산세율 룩업 sanity) — 7종 검증 |
-| `RULE_VERSION` | `"v0.2.0-post-20260510"` | **`"v0.3.0-post-20260510"`** |
-| `Object.freeze` | 미적용 (v0.2 정책 계승) | **미적용** (v0.3-A 정책 계승, §11-3 결정 그대로) |
-| selfTest sanity 케이스 | 6건 (TC-001/003/005 + TC-006/008/010, longTermLookups 15건 통합) | + **TC-011·012 룩업 결과 sanity 2건** (총 8건) — 명세서 §10-2-1·§10-2-2 회귀 보호 |
+| 영역 | v0.2.0 | v0.3-A | **v0.3-B** |
+|---|---|---|---|
+| 노출 멤버 | 24종 | 26종 (v0.2 24종 + v0.3-A 신규 2종) | **26종 그대로** (rules 측 신규 노출 0종) |
+| 신규 노출 — 룩업 테이블 | — | `HEAVY_TAX_RATE_ADDITION` (2행) | 그대로 |
+| 신규 노출 — 룩업 함수 | — | `findHeavyTaxRateAddition(houseCount)` | 그대로 |
+| `LAW_REFS` | 10종 | + `heavyTaxation` 1키 = 11종 | + **`finalReturnAggregation`** 1키 = **12종** |
+| `selfTest()` | 6종 | + `verifyHeavyTaxRateAddition()` = 7종 | **그대로 7종** (확정신고 v3 산식 검증은 engine 측) |
+| `RULE_VERSION` | `"v0.2.0-post-20260510"` | `"v0.3.0-post-20260510"` | **`"v0.3.1-final-return-v3"`** |
+| `Object.freeze` | 미적용 | 미적용 | 미적용 |
+| selfTest sanity 케이스 | 6건 | 8건 (+ TC-011·012) | 그대로 8건 |
 
-> v0.2 노출 멤버 24종은 **모두 시그니처·값·반환 형식 그대로 유지**한다. v0.3-A 패치는 **신규 추가만**(addition-only)이며 v0.2 회귀 + v0.1 회귀를 모두 깨지 않는다. 단 `RULE_VERSION` 문자열만 갱신한다.
+> v0.2·v0.3-A 노출 멤버 26종은 **모두 시그니처·값·반환 형식 그대로 유지**한다. v0.3-B 패치는 **신규 추가만**(addition-only)이며 v0.3-A·v0.2·v0.1 회귀를 모두 깨지 않는다. **v0.3-B 갱신 라인은 `RULE_VERSION` 1라인 + `LAW_REFS.finalReturnAggregation` 1키 = 약 +5~+10 라인**.
 
-> `LAW_REFS` 키 추가는 **노출 멤버 수 증가에 포함하지 않는다** (명세서 v0.3-A §9-2 정본). v0.1.1에서도 `LAW_REFS` 객체는 1종으로 카운트한 정책을 v0.3-A도 그대로 따른다.
+> `LAW_REFS` 키 추가는 **노출 멤버 수 증가에 포함하지 않는다** (명세서 v0.3-A §9-2 정본 그대로). v0.1.1에서도 `LAW_REFS` 객체는 1종으로 카운트한 정책을 v0.3-A·v0.3-B도 그대로 따른다.
 
 ### 1-4. 의존성 (요약, v0.2.0 그대로)
 
@@ -133,11 +182,11 @@ ES6 module(`import`/`export`)을 사용하지 않는다 (의사결정 #5). 비-�
 
 #### 2-2-1. 메타데이터 (3종, v0.1 계승)
 
-| 멤버 | 타입 | 역할 | v0.3-A 변경 |
-|---|---|---|---|
-| `RULE_VERSION` | string | 결과 객체에 기록할 규칙 버전 식별자 | **`"v0.3.0-post-20260510"`로 갱신** |
-| `APPLICABLE_SALE_DATE_FROM` | string (ISO date) | 본 규칙이 적용되는 양도일 하한 | 동일 (`"2026-05-10"`) |
-| `LAW_REFS` | object | 적용 법령 라벨 (v0.2 10종 + **v0.3-A 신규 1종 = 11종**) | 키 1종 추가 (`heavyTaxation`) |
+| 멤버 | 타입 | 역할 | v0.3-A 변경 | **v0.3-B 변경** |
+|---|---|---|---|---|
+| `RULE_VERSION` | string | 결과 객체에 기록할 규칙 버전 식별자 | `"v0.3.0-post-20260510"`로 갱신 | **`"v0.3.1-final-return-v3"`로 갱신** (의사결정 #13) |
+| `APPLICABLE_SALE_DATE_FROM` | string (ISO date) | 본 규칙이 적용되는 양도일 하한 | 동일 (`"2026-05-10"`) | 동일 |
+| `LAW_REFS` | object | 적용 법령 라벨 (v0.2 10종 + v0.3-A 1종 + **v0.3-B 1종 = 12종**) | 키 1종 추가 (`heavyTaxation`) | **키 1종 추가** (`finalReturnAggregation`) |
 
 #### 2-2-2. 금액·세율·임계 상수 (8종, v0.2.0 계승)
 
@@ -192,21 +241,23 @@ ES6 module(`import`/`export`)을 사용하지 않는다 (의사결정 #5). 비-�
 | `verifyLongTermLookups()` | function | 동일 |
 | **`verifyHeavyTaxRateAddition()`** (v0.3-A) | function | **신규 — 가산세율 룩업 sanity 통합 검증** |
 
-#### 2-2-7. v0.3-A 노출 멤버 합계 정합성 검산
+#### 2-2-7. v0.3-B 노출 멤버 합계 정합성 검산
 
-| 카테고리 | v0.1 | v0.2 신규 | v0.3-A 신규 | v0.3-A 합계 |
-|---|---|---|---|---|
-| 메타데이터 | 3 | 0 | 0 | 3 |
-| 금액·세율·임계 상수 | 5 | 3 | 0 | 8 |
-| 룩업 테이블 | 1 | 3 | **1** | 5 |
-| 임계 배열 | 0 | 1 | 0 | 1 |
-| 헬퍼 함수 | 1 | 2 | **1** | 4 |
-| 자체검증 함수 | 4 | 1 | **1** (verifyHeavyTaxRateAddition) | 6 (selfTest 1 + 보조 5) |
-| **합계** | **17** | **7** | **2 (HEAVY_TAX_RATE_ADDITION + findHeavyTaxRateAddition)** | **26** |
+| 카테고리 | v0.1 | v0.2 신규 | v0.3-A 신규 | v0.3-A 합계 | **v0.3-B 신규** | **v0.3-B 합계** |
+|---|---|---|---|---|---|---|
+| 메타데이터 | 3 | 0 | 0 | 3 | **0** (변경 0건 — `RULE_VERSION` 1라인·`LAW_REFS` 1키 추가는 멤버 수 카운트 무영향) | **3** |
+| 금액·세율·임계 상수 | 5 | 3 | 0 | 8 | **0** (변경 0건) | **8** |
+| 룩업 테이블 | 1 | 3 | **1** | 5 | **0** (변경 0건) | **5** |
+| 임계 배열 | 0 | 1 | 0 | 1 | **0** (변경 0건) | **1** |
+| 헬퍼 함수 | 1 | 2 | **1** | 4 | **0** (변경 0건) | **4** |
+| 자체검증 함수 | 4 | 1 | **1** (verifyHeavyTaxRateAddition) | 6 (selfTest 1 + 보조 5) | **0** (변경 0건) | **6** |
+| **합계** | **17** | **7** | **2** (HEAVY_TAX_RATE_ADDITION + findHeavyTaxRateAddition) | **26** | **0** (rules 측 신규 노출 0종 — 산식·헬퍼는 engine 측 단일 책임) | **26** |
 
-> **인계 5 (멤버 수 정확 표기) 처리**: v0.1 17종 + v0.2 신규 7종 = 24종 + v0.3-A 신규 2종 = **26종**. 시스템 프롬프트의 "v0.1 13종" 표기는 v0.1.1 모듈 스펙 §2-2 + 작업지시서 03 §3-1 + 작업지시서 04 §3-4 정본 "v0.1 17종"과 충돌하므로 **v0.1 17종 정본 채택**. 본 모듈 스펙은 v0.3-A 26종 정본을 따른다.
+> **인계 5 (멤버 수 정확 표기) 처리**: v0.1 17종 + v0.2 신규 7종 = 24종 + v0.3-A 신규 2종 = **26종**. v0.3-B는 rules 측 신규 노출 0종이므로 **26종 그대로**. 시스템 프롬프트의 "v0.1 13종" 표기는 v0.1.1 모듈 스펙 §2-2 + 작업지시서 03 §3-1 + 작업지시서 04 §3-4 정본 "v0.1 17종"과 충돌하므로 **v0.1 17종 정본 채택**.
 
-> **헬퍼 vs 자체검증 카운팅 주의**: §1-3 변경 요약 표는 "v0.3-A 신규 2종 = `HEAVY_TAX_RATE_ADDITION` + `findHeavyTaxRateAddition`"으로 카운트하며 `verifyHeavyTaxRateAddition`은 자체검증 카테고리 내부 분화로 처리(v0.2.0 §2-2와 동일 패턴 — `verifyLongTermLookups`도 v0.2 신규였으나 §1-3에서 "신규 7종" 카운트에 별도로 산입). 본 모듈 스펙은 명세서 v0.3-A §9-2 정본 ("v0.3-A 추가 2종")을 따른다. `verifyHeavyTaxRateAddition`은 자체검증 함수 카테고리 내 부속 함수로 카운트되므로 노출 멤버 카운트에는 영향이 없다.
+> **헬퍼 vs 자체검증 카운팅 주의**: §1-3 변경 요약 표는 "v0.3-A 신규 2종 = `HEAVY_TAX_RATE_ADDITION` + `findHeavyTaxRateAddition`"으로 카운트하며 `verifyHeavyTaxRateAddition`은 자체검증 카테고리 내부 분화로 처리. 본 모듈 스펙은 명세서 v0.3-A §9-2 정본을 따른다. `verifyHeavyTaxRateAddition`은 자체검증 함수 카테고리 내 부속 함수로 카운트되므로 노출 멤버 카운트에는 영향이 없다.
+
+> **v0.3-B 신규 0종 사유**: v0.3-B는 LAW_REFS 1키 (`finalReturnAggregation`) + RULE_VERSION 1라인만 추가. 산식 5단계 (groupByTaxYear · calculateClause1AggregateProgressive · calculateClause2PerTransferWithDanSeo · applyFinalReturnV3 · distributeFinalTaxByShare) + 누진 산출 헬퍼 공개 노출 (findProgressiveTaxAmount · findHeavyProgressiveTaxAmount) + issueFlag 신규 2종 + result.steps 신규 4종은 모두 호출 측 `tax_engine.md` v0.3-B 책임 (§3-B-1 위임 영역).
 
 ---
 
@@ -315,34 +366,57 @@ NON_TAXABLE_RESIDENCE_MIN_YEARS  = 2  // 거주 2년 이상 (취득시 조정대
 
 | 멤버 | 값 | 비고 |
 |---|---|---|
-| `RULE_VERSION` | **`"v0.3.0-post-20260510"`** | `taxResult.ruleVersion`에 그대로 기록. v0.2 → v0.3-A 갱신 |
-| `APPLICABLE_SALE_DATE_FROM` | `"2026-05-10"` | 양도일이 이 날짜 이전이면 호출 측이 `OUT_OF_V01_SCOPE_DATE` issueFlag 발동 (v0.3-A에서도 발동 조건 그대로) |
+| `RULE_VERSION` | **`"v0.3.1-final-return-v3"`** | `taxResult.ruleVersion`에 그대로 기록. v0.3-A → v0.3-B 갱신 (의사결정 #13 — 확정신고 v3 산식 정확 도입) |
+| `APPLICABLE_SALE_DATE_FROM` | `"2026-05-10"` | 양도일이 이 날짜 이전이면 호출 측이 `OUT_OF_V01_SCOPE_DATE` issueFlag 발동 (v0.3-A·v0.3-B 모두 발동 조건 그대로) |
 
-##### 3-6-1-A. RULE_VERSION 갱신 영향 검토 (v0.3-A)
+##### 3-6-1-A. RULE_VERSION 갱신 영향 검토 (v0.3-A — 정본 그대로)
 
-`RULE_VERSION` 갱신은 v0.2 → v0.3-A 패치의 **유일한 v0.1·v0.2 시그니처 변경**이다. v0.1·v0.2 회귀 테스트가 본 값을 단순 비교하지 않고 패턴(`/^v0\./`) 또는 존재 확인만 한다면 회귀 영향 없음. 단순 문자열 일치 검증 라인이 있다면 v0.3-A 회귀 테스트 추가 시 함께 갱신 (작업지시서 05 책임).
+`RULE_VERSION` 갱신은 v0.2 → v0.3-A 패치의 **유일한 v0.1·v0.2 시그니처 변경**이었다. v0.1·v0.2 회귀 테스트가 본 값을 단순 비교하지 않고 패턴(`/^v0\./`) 또는 존재 확인만 한다면 회귀 영향 없음. 단순 문자열 일치 검증 라인이 있다면 v0.3-A 회귀 테스트 추가 시 함께 갱신.
 
-> **v0.2.0 → v0.3-A 회귀 보장 단서**: tax_rules.test.js에서 `assert.strictEqual(RULE_VERSION, 'v0.2.0-post-20260510')`처럼 strict-eq 검증 라인이 있는 경우, v0.3-A 패치 시 본 라인을 `'v0.3.0-post-20260510'`으로 갱신하는 것은 **회귀가 깨진 것이 아니라 의도된 1라인 갱신**으로 처리한다 (호출 측 작업지시서 04 §2-3 단서 패턴 그대로 적용).
+> **v0.2.0 → v0.3-A 회귀 보장 단서**: tax_rules.test.js에서 `assert.strictEqual(RULE_VERSION, 'v0.2.0-post-20260510')`처럼 strict-eq 검증 라인이 있는 경우, v0.3-A 패치 시 본 라인을 `'v0.3.0-post-20260510'`으로 갱신하는 것은 **회귀가 깨진 것이 아니라 의도된 1라인 갱신**으로 처리한다.
 
-#### 3-6-2. LAW_REFS (v0.2 10종 + v0.3-A 신규 1종 = 11종)
+##### 3-6-1-B. RULE_VERSION 갱신 영향 검토 (v0.3-B 신규)
 
-v0.2.0 §3-6-2의 10종에 v0.3-A 신규 1종 추가:
+v0.3-B는 v0.3-A → v0.3-B 패치의 **유일한 v0.3-A 시그니처 변경**이 `RULE_VERSION` 1라인 갱신이다. 변경 본문:
 
-| 키 | 값 | v0.3-A 변경 |
+| 영역 | v0.3-A | v0.3-B |
 |---|---|---|
-| `incomeTaxAct` | `"소득세법 [법률 제21065호, 2026-01-02 시행]"` | 동일 |
-| `incomeTaxEnforcement` | `"소득세법 시행령 [대통령령 제36129호, 2026-03-01 시행]"` | 동일 |
-| `progressiveRate` | `"소득세법 제55조 제1항"` | 동일 |
-| `transferTaxRate` | `"소득세법 제104조 제1항"` | 동일 |
-| `basicDeduction` | `"소득세법 제103조"` | 동일 |
-| `localIncomeTax` | `"지방세법 제103조의3"` | 동일 |
-| `nonTaxation1Se1House` | `"소득세법 제89조 제1항 제3호, 시행령 제154조"` | 동일 |
-| `highValueHouse` | `"소득세법 제95조 제3항, 시행령 제160조 제1항"` | 동일 |
-| `longTermDeductionTable1` | `"소득세법 제95조 제2항 표 1, 시행령 제159조의3"` | 동일 |
-| `longTermDeductionTable2` | `"소득세법 제95조 제2항 표 2, 시행령 제159조의4"` | 동일 |
-| **`heavyTaxation`** (v0.3-A) | **`"소득세법 제104조 제7항, 시행령 제167조의3·제167조의10·제167조의11"`** | **신규** |
+| `RULE_VERSION` 값 | `"v0.3.0-post-20260510"` | **`"v0.3.1-final-return-v3"`** |
+| 갱신 사유 | (해당 없음) | 의사결정 #13 — 확정신고 v3 산식 정확 도입. 동일 과세기간 다중 양도 시 법 제104조 ⑤ 정확본 산식 (1호 합산 누진 + 2호 단독 합계 + 단서) 정확 적용 |
 
-##### 3-6-2-A. heavyTaxation 키 인용 범위 (명세서 §3-1 본문 인용)
+**v0.3-A → v0.3-B 회귀 보장 단서**: `tests/tax_rules.test.js`의 RULE_VERSION strict-eq 검증 라인은 다음과 같이 1라인 갱신:
+
+```js
+// v0.3-A:
+assert.strictEqual(taxRules.RULE_VERSION, 'v0.3.0-post-20260510');
+// v0.3-B (1라인 갱신):
+assert.strictEqual(taxRules.RULE_VERSION, 'v0.3.1-final-return-v3');
+```
+
+본 1라인 갱신 외 v0.3-A 회귀 영향 없음. v0.3-A의 26종 노출 멤버 시그니처·값·반환 형식은 모두 그대로 보존.
+
+> **명명 규칙**: `"v0.3.1-final-return-v3"`의 의미 — `v0.3.1`은 v0.3 라인의 패치 번호 (v0.3.0 = v0.3-A 정본, v0.3.1 = v0.3-B 패치본). `final-return-v3`은 확정신고 v3 산식 정확 도입을 식별. 본 명명은 의사결정 #13 본문에 영속화 완료.
+
+#### 3-6-2. LAW_REFS (v0.2 10종 + v0.3-A 1종 + v0.3-B 신규 1종 = 12종)
+
+v0.3-A의 11종에 v0.3-B 신규 1종 추가:
+
+| 키 | 값 | v0.3-A | v0.3-B |
+|---|---|---|---|
+| `incomeTaxAct` | `"소득세법 [법률 제21065호, 2026-01-02 시행]"` | 동일 | 동일 |
+| `incomeTaxEnforcement` | `"소득세법 시행령 [대통령령 제36129호, 2026-03-01 시행]"` | 동일 | 동일 |
+| `progressiveRate` | `"소득세법 제55조 제1항"` | 동일 | 동일 |
+| `transferTaxRate` | `"소득세법 제104조 제1항"` | 동일 | 동일 |
+| `basicDeduction` | `"소득세법 제103조"` | 동일 | 동일 |
+| `localIncomeTax` | `"지방세법 제103조의3"` | 동일 | 동일 |
+| `nonTaxation1Se1House` | `"소득세법 제89조 제1항 제3호, 시행령 제154조"` | 동일 | 동일 |
+| `highValueHouse` | `"소득세법 제95조 제3항, 시행령 제160조 제1항"` | 동일 | 동일 |
+| `longTermDeductionTable1` | `"소득세법 제95조 제2항 표 1, 시행령 제159조의3"` | 동일 | 동일 |
+| `longTermDeductionTable2` | `"소득세법 제95조 제2항 표 2, 시행령 제159조의4"` | 동일 | 동일 |
+| `heavyTaxation` (v0.3-A) | `"소득세법 제104조 제7항, 시행령 제167조의3·제167조의10·제167조의11"` | 신규 | 그대로 |
+| **`finalReturnAggregation`** (v0.3-B) | **`"소득세법 제104조 제5항(본문·1호·2호 본문·2호 단서) + 제55조 제1항"`** | — | **신규** |
+
+##### 3-6-2-A. heavyTaxation 키 인용 범위 (v0.3-A 본문 그대로)
 
 `heavyTaxation` 키는 다음 4개 영역의 issueFlag·결과 객체 메타에서 사용된다 (호출 측 `tax_engine.md` v0.3-A §6-A 카탈로그):
 
@@ -352,6 +426,24 @@ v0.2.0 §3-6-2의 10종에 v0.3-A 신규 1종 추가:
 4. **LONG_TERM_DEDUCTION_EXCLUDED_BY_MULTI_HOUSE_HEAVY** (info): 소득세법 제95조 ② 단서
 
 > **본 모듈 스펙은 issueFlag 카탈로그를 보유하지 않는다** (§0-2 위임). 본 키 라벨만 단일 보유.
+
+##### 3-6-2-B. finalReturnAggregation 키 인용 범위 (v0.3-B 신규 — 명세서 §5-7 본문 인용)
+
+`finalReturnAggregation` 키는 다음 2개 영역의 issueFlag·결과 객체 메타에서 사용된다 (호출 측 `tax_engine.md` v0.3-B §6-A 카탈로그 신규 2종):
+
+1. **FINAL_RETURN_AGGREGATE_PROGRESSIVE_APPLIED** (info): 소득세법 제104조 제5항 제1호 (양도소득과세표준 합계액 × 제55조 제1항 누진세율)
+2. **FINAL_RETURN_DAN_SEO_APPLIED** (info): 소득세법 제104조 제5항 제2호 단서 (동일 호 세율 자산 ≥ 2 → 그 자산들 과세표준 합산 × 호별 세율 + MAX 채택)
+
+**본 키의 인용 폐기 영역** (사용자 39번째 짚음 정정 + 의사결정 #13 본문):
+
+| 시행령 | v0.3-A·v0.3-B 인용 영역 |
+|---|---|
+| 시행령 제167조의10 | **본 키에 인용 0건** (시행령 제167조의10은 다주택 중과 자산 정의 조문일 뿐 — `heavyTaxation` 키에서만 인용. 법 제104조 ⑤ 적용 영역에서 본 시행령을 "자산별 단독 과세 근거"로 인용하는 것은 잘못 — v3 정정 영역) |
+| 시행령 제167조의11 | **본 키에 인용 0건** (시행령 제167조의11은 중과 배제 사유 조문 — `heavyTaxation` 키에서만 인용) |
+
+> **본 키 인용 영역 자체 검증**: `finalReturnAggregation = "소득세법 제104조 제5항(본문·1호·2호 본문·2호 단서) + 제55조 제1항"` — 시행령 0건 인용. 법 본문만 인용.
+
+> **본 모듈 스펙은 산식 본문을 보유하지 않는다** (§0-2 위임). 본 키 라벨만 단일 보유. `applyFinalReturnV3` 함수 본체 + 5단계 산식은 `tax_engine.md` v0.3-B §5-7 단일 진본.
 
 #### 3-6-3. 금액·세율 상수 (v0.1·v0.2 그대로)
 
@@ -435,6 +527,77 @@ v0.5+ 단계에서 다른 중과 케이스(예: 비사업용 토지 중과 +10%p
 | (b) 케이스별 별도 룩업 테이블 | `HEAVY_TAX_RATE_ADDITION_HOUSE`, `HEAVY_TAX_RATE_ADDITION_LAND` 별도 보유 |
 
 본 결정은 v0.5+ 단계에서 별도 논의 (§11-6 TR-09).
+
+---
+
+### 3-B. 확정신고 v3 산식 영역 — rules 측 단일 책임 (v0.3-B 신규)
+
+본 §3-B는 v0.3-B 신규 영역인 확정신고 v3 산식(법 제104조 ⑤ 정확본)의 rules 측 단일 책임을 명시한다. 산식 본문은 호출 측 `tax_engine.md` v0.3-B §5-7 단일 진본 (사용자 결정 옵션 (A) 채택 — 작업 창 #15 진입 시 영속화).
+
+#### 3-B-1. 본 모듈의 단일 책임 (v0.3-B 신규 — LAW_REFS 1키만)
+
+본 모듈이 v0.3-B에서 **신규 보유**하는 영역은 다음 1건뿐이다:
+
+| 영역 | 본문 |
+|---|---|
+| `LAW_REFS.finalReturnAggregation` | `"소득세법 제104조 제5항(본문·1호·2호 본문·2호 단서) + 제55조 제1항"` (§3-6-2-B 정본) |
+
+본 모듈은 **다음 영역을 보유하지 않는다** (호출 측 단일 책임):
+
+| 영역 | 처리 위치 |
+|---|---|
+| `groupByTaxYear(perTransferResults)` 함수 본체 | `tax_engine.md` v0.3-B §5-7-3 1단계 |
+| `calculateClause1AggregateProgressive(perTransferResultsSameYear)` 함수 본체 (1호 합산 누진) | `tax_engine.md` v0.3-B §5-7-3 2단계 |
+| `calculateClause2PerTransferWithDanSeo(perTransferResultsSameYear)` 함수 본체 (2호 단독 합계 + 단서) | `tax_engine.md` v0.3-B §5-7-3 3단계 |
+| `applyFinalReturnV3(perTransferResultsSameYear)` 함수 본체 (MAX(1호, 2호) 채택 + selection) | `tax_engine.md` v0.3-B §5-7-3 4단계 |
+| `distributeFinalTaxByShare(perTransferResultsSameYear, finalReturnResult)` 함수 본체 (양도별 비례 분배) | `tax_engine.md` v0.3-B §5-7-3 5단계 |
+| 누진 산출 헬퍼 공개 노출 (`findProgressiveTaxAmount`·`findHeavyProgressiveTaxAmount`) | `tax_engine.md` v0.3-B §2 (engine 측 v0.3-B 신규 노출 2종) |
+| issueFlag 신규 2종 (`FINAL_RETURN_AGGREGATE_PROGRESSIVE_APPLIED`·`FINAL_RETURN_DAN_SEO_APPLIED`) | `tax_engine.md` v0.3-B §6-A 카탈로그 (25 + 2 = 27종) |
+| `result.steps` 신규 4종 (`saleYear`·`finalCalculatedTax`·`finalReturnMethod`·`finalReturnDiff`) | `tax_engine.md` v0.3-B §4-A |
+| 호출 위치 (`simulateScenarioWithStateTransition` 보강) | `tax_engine.md` v0.3-B §5-7-4 |
+
+#### 3-B-2. 단일 소스 원칙 적용 (§0-1 원칙 (1))
+
+`finalReturnAggregation` 키가 인용하는 법령 조문(법 제104조 ⑤ + 제55조 ①)은 본 모듈의 다른 키와 **상호 배타적이지 않다**. 다음 영역에서 키 간 인용 중첩이 있다:
+
+| 키 | 인용 조문 |
+|---|---|
+| `progressiveRate` | 소득세법 제55조 제1항 |
+| `transferTaxRate` | 소득세법 제104조 제1항 |
+| `heavyTaxation` | 소득세법 제104조 제7항, 시행령 제167조의3·제167조의10·제167조의11 |
+| **`finalReturnAggregation`** | **소득세법 제104조 제5항(본문·1호·2호 본문·2호 단서) + 제55조 제1항** |
+
+`finalReturnAggregation` 키는 **법 제104조 ⑤ 본문 + 1호 + 2호 본문 + 2호 단서**를 단일 인용하며, 제55조 제1항을 1호 적용 영역에서 함께 인용한다. 본 키는 `progressiveRate`·`transferTaxRate`·`heavyTaxation`과 **인용 영역이 다르므로 상호 배타적**.
+
+> **인용 영역 분담**: `progressiveRate` = 일반 누진세율 본문 / `transferTaxRate` = 양도세율표 본문 / `heavyTaxation` = 다주택 중과 가산세율 본문 / **`finalReturnAggregation` = 동일 과세기간 다중 양도 시 1호·2호 채택 산식 본문**.
+
+#### 3-B-3. 시행령 인용 폐기 영역 (사용자 39번째 짚음 정정)
+
+본 §3-B-3은 v0.3-B 합본 산출 시점의 자체 검증 영역이다. 다음 영역에서 시행령 인용 0건 자체 검증 결과:
+
+| 검증 영역 | 결과 |
+|---|---|
+| `finalReturnAggregation` 키 라벨 | 시행령 0건 인용 (법 제104조 ⑤ + 제55조 ① 본문만) ✅ |
+| `heavyTaxation` 키 라벨 | 시행령 제167조의3·제167조의10·제167조의11 인용 — v0.3-A 본문 그대로 보존 (다주택 중과 자산 정의 영역 — 변경 0건) ✅ |
+| 본 §3-B 본문 시행령 인용 | 0건 ✅ |
+| `LAW_REFS` 12종 인용 영역 | `finalReturnAggregation` 영역 시행령 0건 ✅ |
+
+> **사용자 39번째 짚음 본문**: "시행령 제167조의10을 자산별 단독 과세 근거로 잘못 인용". v0.3-B는 본 짚음을 정확히 정정 — 법 제104조 ⑤ 적용 영역에서 시행령 제167조의10 인용 0건. 시행령 제167조의10은 다주택 중과 자산 정의 조문일 뿐이며 `heavyTaxation` 키에서만 인용.
+
+#### 3-B-4. v0.3-A → v0.3-B 패치 라인 추정
+
+본 §3-B 영역의 rules 측 코드 변경은 약 +5~+10 라인:
+
+| 변경 영역 | 라인 추정 |
+|---|---|
+| `RULE_VERSION` 1라인 갱신 | +1 |
+| `LAW_REFS.finalReturnAggregation` 1키 추가 (객체 리터럴 영역) | +2~+3 |
+| `selfTest()` 영역 변경 | 0 (확정신고 v3 검증은 engine 측 책임) |
+| 노출 객체 영역 변경 | 0 (rules 측 신규 노출 0종) |
+| 헬퍼 함수 영역 변경 | 0 |
+| **합계** | **+3~+4 라인 (실효 갱신)** |
+
+> **회귀 영향**: v0.3-A 회귀 (TC-001~014 14건 + v0.2 150건 + v0.1 67건)는 모두 통과. RULE_VERSION strict-eq 라인 1줄 갱신만 예외.
 
 ---
 
@@ -994,10 +1157,11 @@ v0.2.0 §11-5 본문 그대로. v0.3-A에서도 `UNREGISTERED_RATE` 유지.
 - [ ] v0.2 회귀 안전성 보장 항목 명시 (§12-3)
 - [ ] v0.3-A 신규 검증 안전성 보장 항목 명시 (§12-4) — **20건**
 
-### 13-2. Claude Code 산출 `js/tax_rules.js` 체크 (v0.2.0 §13-2 계승 + v0.3-A 추가)
+### 13-2. Claude Code 산출 `js/tax_rules.js` 체크 (v0.2.0 §13-2 계승 + v0.3-A 추가 + v0.3-B 추가)
 
 - [ ] `window.TaxOpt.taxRules` 노출 객체 **26종** 멤버 모두 정의
 - [ ] **`RULE_VERSION === "v0.3.0-post-20260510"`** — v0.3-A 갱신
+- [ ] **`RULE_VERSION === "v0.3.1-final-return-v3"`** — v0.3-B 갱신
 - [ ] **5개** 룩업 테이블 행 수 (8 + 13 + 8 + 9 + **2**) 일치
 - [ ] 표 2 우측 idx=1 `requiresHoldingMin3y === true`
 - [ ] **`HEAVY_TAX_RATE_ADDITION` 2행 정답값** (`{ houseCount: 2, addition: 0.20 }`, `{ houseCount: 3, addition: 0.30 }`)
@@ -1007,16 +1171,18 @@ v0.2.0 §11-5 본문 그대로. v0.3-A에서도 `UNREGISTERED_RATE` 유지.
 - [ ] `Object.freeze` 미적용
 - [ ] `UNREGISTERED_RATE` 유지
 - [ ] **`LAW_REFS.heavyTaxation` 존재** — v0.3-A 신규 키
+- [ ] **`LAW_REFS.finalReturnAggregation` 존재** — v0.3-B 신규 키 (`"소득세법 제104조 제5항(본문·1호·2호 본문·2호 단서) + 제55조 제1항"`)
 - [ ] **`verifyHeavyTaxRateAddition()` 함수 정의 + selfTest 내부 호출**
 
-### 13-3. Claude Code 산출 `tests/tax_rules.test.js` 체크 (v0.2.0 §13-3 계승 + v0.3-A 추가)
+### 13-3. Claude Code 산출 `tests/tax_rules.test.js` 체크 (v0.2.0 §13-3 계승 + v0.3-A 추가 + v0.3-B 추가)
 
 - [ ] v0.2 회귀 검증 그대로 통과 (Node.js v0.2 baseline 150/0 → v0.3-A 추가 후 N/0, N ≥ 165)
+- [ ] **v0.3-B 추가 후 변경 0건** (`RULE_VERSION` strict-eq 1라인 갱신만 예외 — `'v0.3.0-post-20260510'` → `'v0.3.1-final-return-v3'`)
 - [ ] **§12-4 신규 검증 항목 20건 모두 통과**
 - [ ] `selfTest()` 결과 `longTermLookups.ok === true` (v0.2 그대로)
 - [ ] **`selfTest()` 결과 `heavyTaxAdditionLookups.ok === true`** (v0.3-A 신규)
 
-### 13-4. v0.3-A 골든셋 회귀 (작업지시서 06 단계 — 본 모듈 스펙 검증 후)
+### 13-4. v0.3-A 골든셋 회귀 (작업지시서 06 단계 — 본 모듈 스펙 검증 후) + v0.3-B 신규 골든셋 영역
 
 - [ ] TC-006~010 5건 totalTax 일치 (v0.2 회귀 — `tests/tax_engine.test.js`)
 - [ ] TC-001~005 5건 totalTax 일치 (v0.1 회귀, 입력 패치 `householdHouseCount: 2` 적용 후)
@@ -1024,6 +1190,7 @@ v0.2.0 §11-5 본문 그대로. v0.3-A에서도 `UNREGISTERED_RATE` 유지.
 - [ ] **TC-012 totalTax 검증 통과** (3주택 중과 +30%p, 검증팀 손계산 + 홈택스 모의계산 후 정답값 확정)
 - [ ] **TC-013 totalTax === 130,878,000** (= TC-008, 2주택 + saleRegulated=false 회귀)
 - [ ] **TC-014 totalTax === 130,878,000** (= TC-008, 3주택 + saleRegulated=false 회귀)
+- [ ] **v0.3-B 신규 골든셋 (TC-S05·S06·S07)는 호출 측 `tax_engine.md` v0.3-B 책임. 본 모듈 v0.3-B 영향 0건** (`RULE_VERSION` 1라인 갱신만 예외)
 
 ---
 
@@ -1033,13 +1200,13 @@ v0.2.0 §11-5 본문 그대로. v0.3-A에서도 `UNREGISTERED_RATE` 유지.
 |---|---|---|
 | v0.2.0 | 2026-05-01 | 초기 작성. v0.1.1 modules/tax_rules.md (235줄) 베이스 + v0.2 신규 항목. (1) §1-2 §0-1 법령 개정 대응 아키텍처 인용. (2) §3 룩업 테이블 4종 정본 (PROGRESSIVE_BRACKETS 계승 + 장특공 표 1·2 좌·2 우 신규). (3) §4 헬퍼 함수 3종 (findBracket 계승 + findHoldingRate·findResidenceRate 신규). (4) §11 보류 항목 4건 결정. (5) §11-6 v0.3+ 인계 7건. (6) §12 작업지시서 03 입력 패키지. (7) §13 검증 체크리스트. (8) 5/1 보강 정정: §11-6 TR-08 (B-023 부칙·경과규정) 추가 + 백로그 ID 매핑 정정. |
 | **v0.3-A** | **2026-05-02** | **본 버전. 작업 창 #11 산출.** v0.2.0 모듈 스펙 (820줄) 베이스 + v0.3-A 신규 영역 통합. (1) §0 변경 요약 신설 (v0.2 → v0.3-A 변경 영역 일람 + 본 모듈 스펙이 처리하지 않는 영역 호출 측 위임). (2) §1-2-1 옵션 (가) 채택 근거 명시 (인계 3 처리 — 가산세율 룩업 + 동적 재계산). (3) §1-3 변경 요약 표 v0.3-A 행 추가 (24종 → 26종). (4) §2-2 노출 멤버 일람 v0.3-A 갱신 (룩업 테이블 5종, 헬퍼 4종, 자체검증 6종). (5) §2-2-7 노출 멤버 합계 정합성 검산 표 신규 (인계 5 처리 — v0.1 17 + v0.2 7 + v0.3-A 2 = 26). (6) §3-A `HEAVY_TAX_RATE_ADDITION` 룩업 테이블 신규 (§3-A-1 스키마 + §3-A-2 2행 정답값 + §3-A-3 보장 + §3-A-4 등차수열 금지 명문화 + §3-A-5 v0.5+ 인계). (7) §4-A `findHeavyTaxRateAddition(houseCount)` 헬퍼 함수 신규 (§4-A-1 입력 검증 + §4-A-2 클램프 + §4-A-3 함수 시그니처 골격 + §4-A-4 sanity 4건 + §4-A-5 throw 9건). (8) §5 입력 검증 패턴 v0.3-A 보강 (`houseCount < 2` throw 추가). (9) §6-1 클램프 정책 일람 v0.3-A 추가 (`>= 3` 클램프). (10) §7 시행일 기반 분기 본문에 인계 4 (시행령 제167조의10·11 단서 미처리) 영향 명시. (11) §8 의존성 갱신 (v0.3-A 호출 측 사용 항목 + 부트스트랩 가드 2-A 추가). (12) §9-A `verifyHeavyTaxRateAddition()` 신규 (sanity 4건 + throw 9건 통합 검증). (13) §10-2 본 모듈이 하지 않는 것 v0.3-A 추가 (`isHeavyTaxationApplicable` + 단계 9 동적 재계산 + 중과 배제 사유). (14) §11-2 selfTest sanity v0.3-A 추가 채택 근거. (15) §11-4-A v0.3-A 신규 임계 추가 없음 결정. (16) §11-6 v0.5+ 인계 표 TR-09·TR-10 신규 추가. (17) §12 작업지시서 05 입력 패키지 갱신 (26종 + 신규 검증 20건). (18) §13 검증 체크리스트 v0.3-A 추가 (§12-4 신규 검증 20건 + TC-011~014 골든셋 4건). (19) **인계 5건 처리**: 인계 1 (B-032 결과 객체 구조) v0.3-A 범위 외 명시 (§0-2), 인계 2 (정본 명칭) §3-5 그대로 유지 + 별칭 영구 제거 명시, 인계 3 (룩업 vs 산식 옵션 (가) 채택) §1-2-1·§3-A-4·§11-6 TR-09 인계, 인계 4 (시행령 제167조의10·11 단서 미처리) §7·§10-2·§11-6 TR-10 인계, 인계 5 (멤버 수 정확 표기) §1-3·§2-2-7 + 시스템 프롬프트 충돌 명시. (20) 의사결정 #5 강화 (§0-1 법령 개정 대응 아키텍처) 본문 7회 인용 + 의사결정 #9 v9 (.js 본문 산출 금지) §4-A-3·§9-A-3 명시 + 의사결정 #11 (정확성 > 속도) 시간 제약 표기 없음. (21) 백로그 B-018·B-020·B-022·B-023·B-024·B-032·B-033 직접 인용. |
-| v0.3-B | 미정 | 시나리오 엔진 도입 시 갱신. Object.freeze deep-freeze 적용 검토 (TR-03). |
+| **v0.3-B** | **2026-05-05** | **본 버전. 작업 창 #15 산출.** v0.3-A 모듈 스펙 (1,147줄) 베이스 + v0.3-B 신규 영역 통합. **순수 추가 패치 (addition-only)** — v0.3-A 26종 노출 멤버 시그니처·값·반환 형식 변경 0건. (1) 제목·메타데이터 표 v0.3-B 갱신 (의사결정 #13 인용 추가). (2) §0 변경 요약 v0.3-B 영역 신설 (v0.3-A → v0.3-B 변경 영역 일람 + LAW_REFS 1키 신규 + RULE_VERSION 갱신). (3) §0-A v0.2.0 → v0.3-A 변경 요약 본문 인용으로 보존 (회귀 안전성 정본). (4) §0-3 v0.3-A 회귀 안전성 영역 신규 (TC-001~014 14건 totalTax 100% 일치 영역 보장). (5) §1-3 변경 요약 표 v0.3-B 열 추가 (LAW_REFS 11종 → 12종 + RULE_VERSION 갱신). (6) §2-2-1 메타데이터 표 v0.3-B 변경 영역 추가 (`finalReturnAggregation` 1키 + RULE_VERSION 갱신). (7) §3-6-1 RULE_VERSION 본문 v0.3-B 갱신 (`"v0.3.1-final-return-v3"` 채택 — 의사결정 #13). (8) §3-6-1-B 신규 §섹션 — RULE_VERSION 갱신 영향 검토 v0.3-B 본문 + 명명 규칙 영속화. (9) §3-6-2 LAW_REFS 12종 표 갱신 (`finalReturnAggregation` 1키 추가). (10) §3-6-2-B 신규 §섹션 — finalReturnAggregation 키 인용 범위 + 시행령 인용 폐기 영역 (사용자 39번째 짚음 정정). (11) §3-B 신규 §섹션 — 확정신고 v3 산식 영역 rules 측 단일 책임 명시 (5단계 산식 본문은 `tax_engine.md` v0.3-B §5-7 단일 진본 — 사용자 결정 옵션 (A) 채택). (12) §3-B-3 시행령 인용 0건 자체 검증 결과 영속화. (13) §14 변경 이력 v0.3-B 행 영속화 (본 행). (14) 부록 A 자체 검증 결과 v0.3-B 갱신. (15) **인계 처리**: B-018 (5/7 발표), B-022 (정수 처리 — v0.3-B 무영향), B-023 (부칙·경과규정), B-024 (일시적 2주택 — post-MVP), B-028~B-031 (본질 가치 4영역 — post-MVP), B-032 (결과 객체 구조 — engine 측 책임), B-033 (자동 조정대상지역 판정). (16) 의사결정 #13 (확정신고 v3 산식 — 법 제104조 ⑤ 정확본) 본문 직접 인용 + 의사결정 #11 (정확성 > 속도) 시간 제약 표기 없음. **(17) v0.3-A → v0.3-B 패치 라인 추정 약 +5~+10 라인** (RULE_VERSION 1라인 + LAW_REFS 1키 추가). |
 
 ---
 
-## 부록 A — 자체 검증 결과 (작업 창 #11)
+## 부록 A — 자체 검증 결과 (v0.3-A 작업 창 #11 — 본문 그대로 보존)
 
-본 모듈 스펙 산출 직후 작업 창 #11이 수행한 자체 검증 5건 결과.
+본 모듈 스펙 v0.3-A 산출 직후 작업 창 #11이 수행한 자체 검증 5건 결과. v0.3-B 합본에서도 본 부록 A 본문은 그대로 보존된다 (v0.3-A 회귀 안전성 정본).
 
 ### A-1. 백로그 ID 정합성 (B-022·B-023·B-032·B-033 본문 정독 후 매핑)
 
@@ -1136,12 +1303,99 @@ v0.2.0 §11-5 본문 그대로. v0.3-A에서도 `UNREGISTERED_RATE` 유지.
 
 ### A-8. 차단 사항
 
-본 모듈 스펙 작성 완료. 차단 사항 0건.
+본 모듈 스펙 v0.3-A 작성 완료. 차단 사항 0건.
 
 후속 작업 창(#12 작업지시서 05 — `tax_rules.js` v0.3-A 패치) 진입 가능 상태. 호출 측 모듈 스펙 `tax_engine.md` v0.3-A는 본 작업 창에서 동시 산출 (별도 파일).
 
 ---
 
-본 문서는 v0.3-A 명세서가 변경되지 않는 한 함께 변경되지 않는다. v0.3-B에서 시나리오 엔진이 도입되면 별도로 `docs/v0.3-B/modules/tax_rules.md`를 작성하거나 본 문서를 v0.3-B로 갱신한다 (Object.freeze 검토 — TR-03).
+## 부록 B — 자체 검증 결과 (v0.3-B 작업 창 #15 — 신규)
+
+본 모듈 스펙 v0.3-B 산출 직후 작업 창 #15가 수행한 자체 검증 5건 결과.
+
+### B-1. 백로그 ID 정합성 (v0.3-B 신규 인계 영역 정독 후 매핑)
+
+| 백로그 ID | 본 모듈 스펙 v0.3-B 인용 위치 | 정합성 |
+|---|---|---|
+| **B-022** (정수 처리 — 절사 vs 반올림) | 메타 표 + (호출 측 §5-7 위임) | ✅ — 본 모듈 v0.3-B는 절사·반올림 적용 없음. `getRateGroupKey` 정수 키 (`Math.round(addition * 100)` 패턴)는 호출 측 `tax_engine.md` v0.3-B §5-7 책임 |
+| **B-024** (일시적 2주택) | 메타 표 + §0 인계 영역 | ✅ — v0.3-B 미포함, post-MVP 인계 (명세서 §1-2 정본) |
+| **B-028~B-031** (본질 가치 4영역) | 메타 표 + §0 인계 영역 | ✅ — post-MVP 인계 (명세서 §1-2 정본) |
+| **B-032** (결과 객체 구조) | 메타 표 + §0-2 (호출 측 위임) | ✅ — v0.3-B는 v0.2·v0.3-A 패턴 그대로 계승. 호출 측 `tax_engine.md` v0.3-B §4-A 책임 |
+| **B-033** (자동 조정대상지역 판정) | 메타 표 | ✅ — post-MVP, 본 v0.3-B 영향 없음 |
+
+### B-2. 명세서 v0.3-B 인용 정합성 (§5-7·§9 정독 후 인용)
+
+| 본 모듈 스펙 §X | 명세서 v0.3-B §Y 정독 후 인용 |
+|---|---|
+| §0 변경 요약 (v0.3-A → v0.3-B) | 명세서 §12-1 (변경 요약) + 의사결정 #13 본문 |
+| §3-6-1-B (RULE_VERSION 갱신) | 의사결정 #13 본문 영속화 그대로 |
+| §3-6-2-B (finalReturnAggregation 키) | 명세서 §5-7-2 법령 본문 인용 + §5-7-6 issueFlag 정본 |
+| §3-B (rules 측 단일 책임) | 명세서 §5-7-3 5단계 산식 본문 인계 + §0-1 원칙 (3) 산식 흐름 분리 |
+| §3-B-3 (시행령 인용 폐기) | 사용자 39번째 짚음 본문 + 의사결정 #13 시행령 제167조의10 인용 폐기 영역 |
+
+### B-3. v0.3-A 회귀 안전성 검증 (TC-001~014 14건 보존 — 절대 깨지면 안 됨)
+
+| 항목 | 검증 결과 |
+|---|---|
+| v0.3-A 26종 노출 멤버 시그니처·반환 형식 보존 | ✅ — §1-3 표 명시 (`RULE_VERSION` 1라인 갱신만 예외 — §3-6-1-B) |
+| v0.3-A 회귀 테스트 baseline 통과 가능 | ✅ — RULE_VERSION strict-eq 1라인 갱신 외 변경 0건 |
+| v0.3-A selfTest 7종 검증 그대로 통과 | ✅ — §9-A `verifyHeavyTaxRateAddition` v0.3-A 본문 그대로 보존 |
+| v0.3-A 골든셋 TC-011~014 회귀 통과 가능 | ✅ — `HEAVY_TAX_RATE_ADDITION` + `findHeavyTaxRateAddition` 그대로 보존 |
+| v0.2 골든셋 TC-006~010 회귀 통과 가능 | ✅ — v0.3-A 보존이 곧 v0.2 보존 |
+| v0.1 골든셋 TC-001~005 회귀 통과 가능 | ✅ — v0.3-A 보존이 곧 v0.1 보존 |
+| 단일 양도 입력 시 호출 측 `applyFinalReturnV3` `length === 1` → `SINGLE_TRANSFER` 분기 → calculatedTax 그대로 | ✅ — 의사결정 #13 회귀 안전성 영역 (호출 측 `tax_engine.md` v0.3-B §5-7-3 4단계 본문) |
+
+### B-4. v0.3-B 신규 검증 항목 명시
+
+| 명세서 §X / 본 모듈 §Y 검증 항목 | 본 모듈 스펙 매핑 |
+|---|---|
+| §5-7-2 법령 본문 인용 (법 제104조 ⑤) | §3-6-2-B + §3-B-1 |
+| §5-7-3 5단계 산식 위임 영역 (engine 측 단일 책임) | §3-B-1 위임 표 (5단계 + 헬퍼 + issueFlag + result.steps + 호출 위치 7건) |
+| §5-7-6 issueFlag 신규 2종 (`FINAL_RETURN_AGGREGATE_PROGRESSIVE_APPLIED`·`FINAL_RETURN_DAN_SEO_APPLIED`) | §3-6-2-B 인용 범위 |
+| 시행령 제167조의10 인용 폐기 (사용자 39번째 짚음) | §3-B-3 자체 검증 |
+| RULE_VERSION 갱신 명명 규칙 (`"v0.3.1-final-return-v3"`) | §3-6-1-B 영속화 |
+
+### B-5. 자체 발견 짚을 부분 (2건)
+
+본 모듈 스펙 v0.3-B 작성 중 발견한 짚을 부분 2건.
+
+#### 짚을 부분 B-1: rules 측 노출 멤버 카운트 — v0.3-A·v0.3-B 모두 26종 동일
+
+- **현상**: v0.3-B는 LAW_REFS 1키만 추가. 노출 멤버는 v0.3-A·v0.3-B 모두 26종.
+- **본 모듈 스펙 처리**: §0-1 + §1-3 표 + §2-2-1 메타 표에 모두 "26종 그대로" 명시. LAW_REFS 키 추가는 노출 멤버 카운트에 포함되지 않는다는 v0.1.1 정책을 그대로 따름 (§1-3 인용 부분).
+- **후속 확인 필요**: 호출 측 `tax_engine.md` v0.3-B는 21종 → 23종으로 확장 (`findProgressiveTaxAmount`·`findHeavyProgressiveTaxAmount` 공개 노출 신규 2종). engine 측 카운트 정합 점검 필요.
+
+#### 짚을 부분 B-2: `RULE_VERSION` 명명 규칙 — `v0.3.0-post-20260510` → `v0.3.1-final-return-v3` 표기 패턴 변경
+
+- **현상**: v0.3-A는 `"v0.3.0-post-20260510"` (양도일 후속 시행 패턴). v0.3-B는 `"v0.3.1-final-return-v3"` (산식 정확 도입 패턴). 표기 패턴이 상이.
+- **본 모듈 스펙 처리**: §3-6-1-B 명명 규칙 영속화. `v0.3.1` = 패치 번호 (v0.3.0 = v0.3-A 정본, v0.3.1 = v0.3-B 패치본). `final-return-v3` = 산식 식별자.
+- **후속 확인 필요**: post-MVP 단계에서 RULE_VERSION 명명 규칙 일관성 점검 필요. 본질 가치 4영역(B-028~B-031) 도입 시 본 패턴 채택 여부 결정.
+
+### B-6. 인용 자료 미비 — 없음
+
+본 모듈 스펙 v0.3-B 작성 중 인용한 자료는 모두 프로젝트 지식에 영속화된 정본 (명세서 v0.3-B, v0.3-A 모듈 스펙, 의사결정 #13, 소득세법 PDF, xlsx 시트 14·15·17·19)이며 미비 항목 없음.
+
+### B-7. 자체 sanity 검증
+
+| 항목 | 결과 |
+|---|---|
+| §3-6-2 LAW_REFS 12종 카운트 (v0.2 10 + v0.3-A 1 + v0.3-B 1) | ✅ 12종 |
+| §1-3 v0.3-B 신규 노출 멤버 카운트 (v0.3-A 26종 그대로) | ✅ 26종 |
+| §3-B-3 시행령 인용 폐기 자체 검증 (`finalReturnAggregation` 키 시행령 0건) | ✅ 통과 |
+| RULE_VERSION 갱신값 검증 (`"v0.3.1-final-return-v3"`) | ✅ 의사결정 #13 영속화 그대로 |
+| §3-B-4 v0.3-A → v0.3-B 패치 라인 추정 (+5~+10 라인) | ✅ RULE_VERSION 1 + LAW_REFS 1키 추가 |
+| 강조어 "본격" 사용 횟수 (1답변 1~2회 한도) | ✅ v0.3-B 신규 영역 0회 (잔존 2건은 v0.3-A 베이스 본문 그대로 보존 — 메타 표 B-023·§11-6 TR-08) |
+| 시행령 제167조의10 인용 횟수 (`finalReturnAggregation` 영역 0건) | ✅ 0건 (`heavyTaxation` 영역만 인용 — v0.3-A 본문 그대로 보존) |
+| 추측 표기 횟수 | ✅ 0건 |
+
+### B-8. 차단 사항
+
+본 모듈 스펙 v0.3-B 작성 완료. 차단 사항 0건.
+
+후속 작업 창(#16 작업지시서 v0.3-B — `tax_rules.js` + `tax_engine.js` v0.3-B 패치) 진입 가능 상태.
+
+---
+
+본 문서는 v0.3-B 명세서가 변경되지 않는 한 함께 변경되지 않는다. post-MVP 단계에서 본질 가치 4영역(B-028~B-031) 도입 시 별도 갱신.
 
 (끝)

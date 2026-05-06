@@ -1479,7 +1479,7 @@ tests/scenario_engine.test.js 신규 (작업 창 #14+ Claude Code 산출):
 
 v0.3-A의 issueFlag 카탈로그 25종은 **양도 1건당 발동**되며 v0.3-B에서도 그대로 보존된다. 본 명세서는 v0.3-A §6 카탈로그를 재정의하지 않고, **시나리오 레이어 신규 issueFlag 약 6종**만 명시.
 
-### 9-2. v0.3-B 시나리오 레이어 신규 issueFlag (약 6~11종)
+### 9-2. v0.3-B 시나리오 레이어 신규 issueFlag (약 6~13종)
 
 | # | code | severity | 발동 조건 | 메시지 (요약) |
 |---|---|---|---|---|
@@ -1494,6 +1494,8 @@ v0.3-A의 issueFlag 카탈로그 25종은 **양도 1건당 발동**되며 v0.3-B
 | 9 | `SALEPLAN_VALIDATION_WARNING` | warning | `validateSalePlan`의 SP_W001~SP_W004 발동 시 | salePlan 검증 경고 (개별 코드는 메시지에 포함) |
 | 10 | `SCENARIO_TYPE_FALLBACK` | info | SCENARIO_METRIC_RULES fallback (TYPE_2_ORDER) 분기 진입 | 시나리오 타입이 기본값(TYPE_2_ORDER)으로 결정되었습니다 |
 | 11 | `EFFECTIVE_RATE_TOTAL_TAX_RANK_DIFFER` | info | TYPE_1_WHICH_ONE에서 `effectiveTaxRate` rank 1 시나리오의 `totalTax` rank ≠ 1 | 본 추천은 실효세율 기반. 총 납부세액 기준으로는 다른 시나리오 우수 (post-MVP 본질 가치 영역 미반영) |
+| 12 | `FINAL_RETURN_AGGREGATE_PROGRESSIVE_APPLIED` | info | TYPE_2_ORDER 또는 TYPE_3_TIMING 시나리오에서 `method === "CLAUSE_1_AGGREGATE_PROGRESSIVE"` 발동 | 동일 과세기간 다중 양도로 합산 누진 적용. 1호 채택 |
+| 13 | `FINAL_RETURN_DAN_SEO_APPLIED` | info | `method === "CLAUSE_2_PER_TRANSFER_WITH_DAN_SEO"` + 단서 발동 (동일 호 세율 자산 ≥ 2) | 동일 세율 자산 합산 단서 적용 |
 
 > > **약 6~11종 중 정확한 채택 갯수는 모듈 스펙에서 결정**: 본 명세서는 발동 조건만 명시. 일부는 통합되거나 정밀화될 수 있음 (예: 9·10은 중복 정보로 간주 시 통합. 11은 effectiveTaxRate 정렬 영역 한계 보조 안내).
 
@@ -1534,6 +1536,7 @@ v0.3-A의 issueFlag 카탈로그 25종은 **양도 1건당 발동**되며 v0.3-B
 | `generateScenarios` 후처리 (§4-5) | `SCENARIO_SINGLE_FIXED`, `SCENARIO_COUNT_EXCEEDS_THRESHOLD`, `SCENARIO_COUNT_HARD_LIMIT` |
 | `simulateScenarioWithStateTransition` (§5) | `STATE_TRANSITION_HOUSE_COUNT_REACHED_ONE`, `STATE_TRANSITION_BASIC_DEDUCTION_DEPLETED` |
 | `recommendBestScenario` (§6-4) | `SCENARIO_TIE_DETECTED`, `SCENARIO_TYPE_FALLBACK`, `EFFECTIVE_RATE_TOTAL_TAX_RANK_DIFFER` |
+| `simulateScenarioWithStateTransition` (§5-4·§5-7) | `FINAL_RETURN_AGGREGATE_PROGRESSIVE_APPLIED`, `FINAL_RETURN_DAN_SEO_APPLIED` |
 
 ---
 

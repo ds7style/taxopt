@@ -1080,6 +1080,12 @@
   <!-- ═══════════════════ 실행 버튼 ═══════════════════ -->
   <div class="btn-row">
     <button class="btn btn-secondary" onclick="resetForm()">초기화</button>
+    <button class="btn"
+            id="btn-tc-s06-demo"
+            onclick="runTcS06DemoFill()"
+            style="background:#f59e0b;color:#fff;border:1px solid #d97706;font-weight:600;">
+      ⚡ TC-S06 데모 입력
+    </button>
     <button class="btn btn-primary"   onclick="runSimulation()">시뮬레이션 실행 →</button>
   </div>
 
@@ -1111,6 +1117,7 @@
 
 <script src="js/tax_rules.js"></script>
 <script src="js/tax_engine.js"></script>
+<script src="js/scenario_engine.js"></script>
 
 <script>
   // ────────────────────────────────────────────
@@ -1328,11 +1335,259 @@
   }
 
   // ────────────────────────────────────────────
-  // 시뮬레이션 실행 (추후 엔진 연결)
+  // v0.3-C 신규 — collectCaseData (DOM → caseData 정규화)
+  //   작업지시서 v0.3-C §4-3. 라이브 환경 정합 본문 (라디오 버튼 가정 → select·checkbox 정합 정정).
+  //   본 작업지시서 §4-5-3 본문에 명시된 "input name 본문 검증 권고 — 미정합 시 정정"
+  //   본문에 따라 실제 DOM(select·checkbox by id) 정합으로 정정.
+  // ────────────────────────────────────────────
+  function collectCaseData() {
+    // 1. 공통
+    var baseYear = parseInt(document.getElementById('base-year').value, 10);
+    var householdMembers = parseInt(document.getElementById('household-members').value, 10);
+    var basicDeductionUsed = document.getElementById('basic-deduction-used').value === 'yes';
+
+    // 2. 보유 주택 수
+    var householdHouseCount = document.getElementById('btn-3').classList.contains('active') ? 3 : 2;
+
+    // 3. 주택별 본문 수집
+    var houseIds = householdHouseCount === 3 ? ['A', 'B', 'C'] : ['A', 'B'];
+    var houses = houseIds.map(function (id) {
+      var p = id.toLowerCase();
+      var residenceMonthsRaw = document.getElementById(p + '-reside-months').value;
+      var nicknameEl = document.getElementById(p + '-nickname');
+      var locationEl = document.getElementById(p + '-location');
+      return {
+        id: id,
+        nickname: nicknameEl ? nicknameEl.value : '',
+        location: locationEl ? locationEl.value : '',
+        acquisitionDate:      document.getElementById(p + '-acq-date').value,
+        acquisitionPrice:     parseInt(document.getElementById(p + '-acq-price').value || '0', 10),
+        necessaryExpense:     parseInt(document.getElementById(p + '-acq-cost').value || '0', 10),
+        acquisitionRegulated: document.getElementById(p + '-acq-regulated').value === 'yes',
+        residenceMonths:      residenceMonthsRaw === '' ? 0 : parseInt(residenceMonthsRaw, 10),
+        livingNow:            document.getElementById(p + '-living-now').checked,
+        expectedSaleDate:     document.getElementById(p + '-sale-date').value,
+        expectedSalePrice:    parseInt(document.getElementById(p + '-sale-price').value || '0', 10),
+        saleRegulated:        document.getElementById(p + '-sale-regulated').value === 'yes'
+      };
+    });
+
+    // 4. salePlan 본문 수집 — 라이브 DOM 정합 (select + checkbox by id)
+    var targetSaleCountRaw = document.getElementById('sp-target-sale-count').value; // '1' | '2' | '3' | 'undecided'
+    var targetSaleCount;
+    if (targetSaleCountRaw === 'undecided') {
+      targetSaleCount = null;
+    } else {
+      targetSaleCount = parseInt(targetSaleCountRaw, 10);
+    }
+
+    // sp-allow-system-choose: 'true' = 시스템 선택, 'false' = 사용자 결정
+    var allowSystemToChooseSaleTargets =
+      document.getElementById('sp-allow-system-choose').value === 'true';
+
+    var fixedSaleHouseIds = [];
+    ['A', 'B', 'C'].forEach(function (id) {
+      var el = document.getElementById('sp-fixed-' + id.toLowerCase());
+      if (el && el.checked) fixedSaleHouseIds.push(id);
+    });
+    var excludedHouseIds = [];
+    ['A', 'B', 'C'].forEach(function (id) {
+      var el = document.getElementById('sp-excluded-' + id.toLowerCase());
+      if (el && el.checked) excludedHouseIds.push(id);
+    });
+
+    var allowYearSplitting =
+      document.getElementById('sp-allow-year-splitting').checked === true;
+
+    var targetSaleYears = [];
+    [2025, 2026, 2027, 2028].forEach(function (y) {
+      var el = document.getElementById('sp-year-' + y);
+      if (el && el.checked) targetSaleYears.push(y);
+    });
+    if (targetSaleYears.length === 0) targetSaleYears = [baseYear];
+
+    var candidateHouseIds = houseIds.filter(function (id) {
+      return excludedHouseIds.indexOf(id) === -1;
+    });
+
+    var salePlan = {
+      targetSaleCount:                targetSaleCount,
+      candidateHouseIds:              candidateHouseIds,
+      fixedSaleHouseIds:              fixedSaleHouseIds,
+      excludedHouseIds:               excludedHouseIds,
+      allowSystemToChooseSaleTargets: allowSystemToChooseSaleTargets,
+      saleYearConstraint:             allowYearSplitting ? 'FLEXIBLE' : 'FIXED',
+      saleDeadlineYear:               baseYear,
+      preferredSaleYearFrom:          baseYear,
+      allowYearSplitting:             allowYearSplitting,
+      targetSaleYears:                targetSaleYears
+    };
+
+    return {
+      baseYear:            baseYear,
+      householdMembers:    householdMembers,
+      basicDeductionUsed:  basicDeductionUsed,
+      householdHouseCount: householdHouseCount,
+      isOneTimeTwoHouses:  false,
+      houses:              houses,
+      salePlan:            salePlan
+    };
+  }
+
+  // ────────────────────────────────────────────
+  // 시뮬레이션 실행 — v0.3-C 본격 연결 (작업지시서 §4-4)
+  //   1. 입력 검증 (highlightMissing 활용)
+  //   2. caseData 정규화
+  //   3. scenario_engine.runScenarios 호출
+  //   4. sessionStorage 저장
+  //   5. result.html 페이지 이동
   // ────────────────────────────────────────────
   function runSimulation() {
-    // TODO: 각 엔진 모듈 호출 후 결과 렌더링
-    alert('시뮬레이션 엔진이 아직 연결되지 않았습니다.\n다음 단계에서 TaxComputationEngine을 붙입니다.');
+    // 부트스트랩 가드
+    if (!window.TaxOpt || !window.TaxOpt.taxEngine) {
+      alert('계산 엔진(tax_engine.js)이 로드되지 않았습니다.');
+      return;
+    }
+    if (!window.TaxOpt.scenarioEngine) {
+      alert('시나리오 엔진(scenario_engine.js)이 로드되지 않았습니다.');
+      return;
+    }
+
+    // 1. 입력 검증 — 누락 항목 강조
+    clearErrors();
+    highlightMissing({});  // data 매개변수는 본 검증에서 미사용 (DOM 직접 정독)
+    if (document.querySelectorAll('.field-error').length > 0) {
+      alert('필수 항목이 비어 있습니다. 빨간 테두리 항목을 채워 주세요.');
+      return;
+    }
+
+    // 2. caseData 정규화
+    var caseData;
+    try {
+      caseData = collectCaseData();
+    } catch (e) {
+      alert('입력값 정규화 실패: ' + e.message);
+      console.error(e);
+      return;
+    }
+
+    // 3. v0.3-C (가-1) 본문 한정 검증 — runScenarios 진입 전 사전 가드
+    if (caseData.householdHouseCount !== 3) {
+      alert('v0.3-C 시연 본문은 3주택 모두 양도 케이스 한정입니다.\n' +
+            '보유 주택 수를 3채로 변경 후 재시도하세요.\n\n' +
+            '(2채/1채 양도 분기는 post-MVP B-034 인계)');
+      return;
+    }
+    if (caseData.salePlan.targetSaleCount !== 3) {
+      alert('v0.3-C 시연 본문은 양도할 주택 수 = 3 (전부 양도) 한정입니다.\n' +
+            '"양도할 주택 수" 항목에서 "전부 양도 (3채)"를 선택하세요.');
+      return;
+    }
+    if (caseData.salePlan.allowYearSplitting === true) {
+      alert('v0.3-C 시연 본문은 동일 과세연도 양도 한정입니다.\n' +
+            '"과세연도를 나누어 분산 양도" 체크를 해제하세요.\n\n' +
+            '(분산 양도 분기는 post-MVP B-034 인계)');
+      return;
+    }
+
+    // 4. 시나리오 엔진 호출
+    var scenarioResults;
+    try {
+      scenarioResults = window.TaxOpt.scenarioEngine.runScenarios(caseData);
+    } catch (e) {
+      alert('시뮬레이션 오류: ' + e.message);
+      console.error(e);
+      return;
+    }
+
+    // 5. sessionStorage 저장
+    try {
+      sessionStorage.setItem('taxopt_caseData', JSON.stringify(caseData));
+      sessionStorage.setItem('taxopt_scenarioResults', JSON.stringify(scenarioResults));
+    } catch (e) {
+      alert('결과 저장 실패: ' + e.message);
+      console.error(e);
+      return;
+    }
+
+    // 6. result.html 페이지 이동
+    window.location.href = 'result.html';
+  }
+
+  // ────────────────────────────────────────────
+  // v0.3-C 신규 — TC-S06 데모 자동 입력 (작업지시서 §4-5)
+  //   5/7 KAIST CAIO 발표 시연용 1-click 입력. 폼 채움만 수행, runSimulation 자동 호출 0건.
+  // ────────────────────────────────────────────
+  function runTcS06DemoFill() {
+    // 1. 보유 주택 수 3채
+    setHouseCount(3);
+
+    // 2. 공통
+    document.getElementById('base-year').value = '2026';
+    document.getElementById('household-members').value = '1';
+    document.getElementById('basic-deduction-used').value = 'no';
+
+    // 3. 주택 A — 보유 12년, 거주 30개월, 15억, 조정
+    document.getElementById('a-nickname').value = '강남 본가';
+    document.getElementById('a-location').value = '서울 강남구';
+    document.getElementById('a-acq-date').value = '2014-05-01';
+    document.getElementById('a-acq-price').value = '500000000';
+    document.getElementById('a-acq-cost').value = '20000000';
+    document.getElementById('a-acq-regulated').value = 'yes';
+    document.getElementById('a-reside-months').value = '30';
+    document.getElementById('a-living-now').checked = false;
+    document.getElementById('a-sale-date').value = '2026-09-15';
+    document.getElementById('a-sale-price').value = '1500000000';
+    document.getElementById('a-sale-regulated').value = 'yes';
+
+    // 4. 주택 B — 10억, 조정
+    document.getElementById('b-nickname').value = '분당 투자';
+    document.getElementById('b-location').value = '경기 성남시 분당구';
+    document.getElementById('b-acq-date').value = '2016-08-15';
+    document.getElementById('b-acq-price').value = '600000000';
+    document.getElementById('b-acq-cost').value = '15000000';
+    document.getElementById('b-acq-regulated').value = 'yes';
+    document.getElementById('b-reside-months').value = '0';
+    document.getElementById('b-living-now').checked = false;
+    document.getElementById('b-sale-date').value = '2026-07-15';
+    document.getElementById('b-sale-price').value = '1000000000';
+    document.getElementById('b-sale-regulated').value = 'yes';
+
+    // 5. 주택 C — 8억, 비조정
+    document.getElementById('c-nickname').value = '인천 매물';
+    document.getElementById('c-location').value = '인천 연수구';
+    document.getElementById('c-acq-date').value = '2018-03-10';
+    document.getElementById('c-acq-price').value = '700000000';
+    document.getElementById('c-acq-cost').value = '10000000';
+    document.getElementById('c-acq-regulated').value = 'no';
+    document.getElementById('c-reside-months').value = '0';
+    document.getElementById('c-living-now').checked = false;
+    document.getElementById('c-sale-date').value = '2026-05-15';
+    document.getElementById('c-sale-price').value = '800000000';
+    document.getElementById('c-sale-regulated').value = 'no';
+
+    // 6. 양도 계획 — 3채 모두 양도, 시점 고정 (한 해 내 양도)
+    document.getElementById('sp-target-sale-count').value = '3';
+    document.getElementById('sp-allow-system-choose').value = 'false'; // 사용자 결정
+    document.getElementById('sp-fixed-a').checked = true;
+    document.getElementById('sp-fixed-b').checked = true;
+    document.getElementById('sp-fixed-c').checked = true;
+    document.getElementById('sp-excluded-a').checked = false;
+    document.getElementById('sp-excluded-b').checked = false;
+    document.getElementById('sp-excluded-c').checked = false;
+    document.getElementById('sp-allow-year-splitting').checked = false;
+    document.getElementById('sp-year-2026').checked = true;
+    document.getElementById('sp-year-2025').checked = false;
+    document.getElementById('sp-year-2027').checked = false;
+    document.getElementById('sp-year-2028').checked = false;
+
+    // 7. 에러 표시 초기화
+    clearErrors();
+
+    // 8. 사용자 피드백
+    alert('✅ TC-S06 데모 입력 완료\n\n' +
+          '3주택 모두 양도 시 양도 순서별 비교 시뮬레이션을 실행하세요.\n\n' +
+          '예상 결과: SC-6 (C→B→A) 양도가 최적 — 약 6.8억원 절세 가능.');
   }
 
   // ────────────────────────────────────────────

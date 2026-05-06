@@ -549,8 +549,8 @@
     assert(ids.indexOf('TC-003') >= 0, 'sanityChecks에 TC-003 포함');
     assert(ids.indexOf('TC-005') >= 0, 'sanityChecks에 TC-005 포함');
   }
-  // v0.3-A: ENGINE_VERSION 갱신 (작업지시서 06 §4-7 + §10-1 (a) strict-eq 1라인 갱신)
-  assertEq(taxEngine.ENGINE_VERSION, 'v0.3.0-A', 'ENGINE_VERSION');
+  // v0.3-B: ENGINE_VERSION 갱신 (작업지시서 v0.3-B §4-1 + §6-1 strict-eq 1라인 갱신)
+  assertEq(taxEngine.ENGINE_VERSION, 'v0.3.0-B', 'ENGINE_VERSION');
 
   // ================================================================
   // 그룹 2 — validateCaseData (v0.1 회귀)
@@ -668,8 +668,8 @@
 
     // 메타 (작업지시서 §2-3 단서 (a)·(c) 적용 — 호출 측 모듈 v0.2 갱신 반영)
     // v0.3-A 갱신 (작업지시서 06 §10-1 (a) strict-eq 라인 갱신 — golden 테스트가 매번 이 라인을 호출)
-    assertEq(result.ruleVersion,   'v0.3.0-post-20260510', tc.id + ' ruleVersion');
-    assertEq(result.engineVersion, 'v0.3.0-A',             tc.id + ' engineVersion');
+    assertEq(result.ruleVersion,   'v0.3.1-final-return-v3', tc.id + ' ruleVersion');
+    assertEq(result.engineVersion, 'v0.3.0-B',                tc.id + ' engineVersion');
   });
 
   // ================================================================
@@ -1556,7 +1556,7 @@
   ['TC-001','TC-003','TC-005','TC-006','TC-008','TC-010','TC-011','TC-012'].forEach(function (id) {
     assert(stIds.indexOf(id) >= 0, 'sanityChecks 포함: ' + id);
   });
-  assertEq(taxEngine.ENGINE_VERSION, 'v0.3.0-A', 'ENGINE_VERSION === "v0.3.0-A"');
+  assertEq(taxEngine.ENGINE_VERSION, 'v0.3.0-B', 'ENGINE_VERSION === "v0.3.0-B"');
   assertEq(typeof taxEngine.isHeavyTaxationApplicable, 'function',
     'isHeavyTaxationApplicable 노출');
 
@@ -1769,11 +1769,235 @@
     'TC-013 OUT_OF_V01_SCOPE_REGULATED_AREA 미발동 (폐기)');
 
   // ================================================================
+  // 그룹 v0.3-B_R-B — 확정신고 v3 산식 5단계 (작업지시서 §6-3)
+  //   의사결정 #13 + 법 제104조 ⑤ 정확본 + xlsx 시트19 (TC-S05·S06 v3 정답값)
+  // ================================================================
+  setGroup('그룹 v0.3-B R-B 확정신고 v3');
+
+  // ─── R-B-1: applyFinalReturnV3 단일 양도 분기 (TC-001~014 회귀 안전성) ────
+  // length === 1 → SINGLE_TRANSFER 채택, finalReturnTax = calculatedTax 그대로
+  var rb1 = taxEngine.applyFinalReturnV3([
+    { saleYear: 2026, calculatedTax: 100000000, taxBase: 300000000, heavyRateAddition: null }
+  ]);
+  assertEq(rb1.method, 'SINGLE_TRANSFER',
+    'R-B-1 length === 1 → method === "SINGLE_TRANSFER"');
+  assertEq(rb1.finalReturnTax, 100000000,
+    'R-B-1 finalReturnTax === calculatedTax 그대로');
+  assertEq(rb1.diff, 0,
+    'R-B-1 diff === 0 (단일 양도)');
+
+  // 빈 배열 → NONE 분기
+  var rb1Empty = taxEngine.applyFinalReturnV3([]);
+  assertEq(rb1Empty.method, 'NONE',
+    'R-B-1 length === 0 → method === "NONE"');
+  assertEq(rb1Empty.finalReturnTax, 0,
+    'R-B-1 length === 0 → finalReturnTax === 0');
+
+  // ─── R-B-2: 다중 양도 + 일반과세 그룹 (단서 발동) — clause2 검증 ─────────
+  // 일반과세 자산 2건 (heavyRateAddition === null) → 동일 호 세율 그룹 ≥ 2 → 단서 발동
+  // 합산 baseTax 산식 (findProgressiveTaxAmount) 적용 후 MAX(합산, 단독 합계) 채택
+  // taxBase 100M + 100M = 200M (5구간 38%) — 합산: 37,060,000 + (200M - 150M)*0.38 = 56,060,000
+  // 단독 합계: 2 × findProgressiveTaxAmount(100M) = 2 × (15,360,000 + (100M-88M)*0.35) = 2 × 19,560,000 = 39,120,000
+  // MAX → 56,060,000 (합산 채택)
+  var rb2Group = [
+    { saleYear: 2026, taxBase: 100000000, calculatedTax: 19560000, heavyRateAddition: null },
+    { saleYear: 2026, taxBase: 100000000, calculatedTax: 19560000, heavyRateAddition: null }
+  ];
+  var rb2Clause2 = taxEngine.calculateClause2PerTransferWithDanSeo(rb2Group);
+  assertEq(rb2Clause2, 56060000,
+    'R-B-2 일반과세 단서 발동 → clause2 === 56,060,000 (합산 채택)');
+
+  // ─── R-B-3: 다중 양도 + 중과 0.20 그룹 (단서 발동) — heavy 누적 산식 ────
+  // 중과 자산 2건 + 0.20 + 동일 그룹 ≥ 2 → 단서 발동
+  // 합산 taxBase: 100M + 100M = 200M (5구간 marginalRate=0.38)
+  // 누적 산식: 14M*0.26 + 36M*0.35 + 38M*0.44 + 62M*0.55 + (200M-150M)*0.58
+  //         = 3,640,000 + 12,600,000 + 16,720,000 + 34,100,000 + 29,000,000 = 96,060,000
+  // 단독 합계: 2 × computeHeavyProgressiveTax(100M, 0.20)
+  //         = 2 × (3,640,000 + 12,600,000 + (100M-88M)*0.55) = 2 × 22,840,000 = 45,680,000
+  // MAX → 96,060,000 (합산 채택)
+  var rb3Group = [
+    { saleYear: 2026, taxBase: 100000000, calculatedTax: 22840000, heavyRateAddition: 0.20 },
+    { saleYear: 2026, taxBase: 100000000, calculatedTax: 22840000, heavyRateAddition: 0.20 }
+  ];
+  var rb3Clause2 = taxEngine.calculateClause2PerTransferWithDanSeo(rb3Group);
+  assertEq(rb3Clause2, 96060000,
+    'R-B-3 중과 0.20 단서 발동 → clause2 === 96,060,000 (heavy 누적 산식 합산 채택)');
+
+  // ─── R-B-4: distributeFinalTaxByShare Math.floor 분배 + 회귀 안전성 ─────
+  var rb4Group = [
+    { saleYear: 2026, calculatedTax: 30000000, taxBase: 200000000, heavyRateAddition: null },
+    { saleYear: 2026, calculatedTax: 70000000, taxBase: 400000000, heavyRateAddition: null }
+  ];
+  var rb4Final = { finalReturnTax: 100000000, method: 'CLAUSE_1_AGGREGATE_PROGRESSIVE', diff: 0 };
+  taxEngine.distributeFinalTaxByShare(rb4Group, rb4Final);
+  assertEq(rb4Group[0].finalCalculatedTax, 30000000,
+    'R-B-4 비례 분배 (1번째) === 30,000,000');
+  assertEq(rb4Group[1].finalCalculatedTax, 70000000,
+    'R-B-4 비례 분배 (2번째) === 70,000,000');
+
+  // SINGLE_TRANSFER 분기 — finalCalculatedTax = finalReturnTax 그대로
+  var rb4Single = [
+    { saleYear: 2026, calculatedTax: 50000000, taxBase: 300000000, heavyRateAddition: null }
+  ];
+  taxEngine.distributeFinalTaxByShare(rb4Single, { finalReturnTax: 50000000, method: 'SINGLE_TRANSFER', diff: 0 });
+  assertEq(rb4Single[0].finalCalculatedTax, 50000000,
+    'R-B-4 SINGLE_TRANSFER 분기 → finalCalculatedTax === finalReturnTax 그대로');
+
+  // 전체 비과세 케이스 (totalCalc === 0) → 분배 0
+  var rb4Zero = [
+    { saleYear: 2026, calculatedTax: 0, taxBase: 0, heavyRateAddition: null },
+    { saleYear: 2026, calculatedTax: 0, taxBase: 0, heavyRateAddition: null }
+  ];
+  taxEngine.distributeFinalTaxByShare(rb4Zero, { finalReturnTax: 0, method: 'CLAUSE_2_PER_TRANSFER_WITH_DAN_SEO', diff: 0 });
+  assertEq(rb4Zero[0].finalCalculatedTax, 0,
+    'R-B-4 전체 비과세 → finalCalculatedTax 0 (1번째)');
+  assertEq(rb4Zero[1].finalCalculatedTax, 0,
+    'R-B-4 전체 비과세 → finalCalculatedTax 0 (2번째)');
+
+  // ─── R-B-5: groupByTaxYear (TC-S07 분산 양도 영역) ──────────────────────
+  // [2026: 1건, 2027: 1건] → length === 1 → SINGLE_TRANSFER 각 연도별
+  var rb5Spread = [
+    { saleYear: 2026, calculatedTax: 100000000, taxBase: 300000000, heavyRateAddition: null },
+    { saleYear: 2027, calculatedTax: 130000000, taxBase: 350000000, heavyRateAddition: 0.20 }
+  ];
+  var rb5Groups = taxEngine.groupByTaxYear(rb5Spread);
+  assertEq(rb5Groups.size, 2,
+    'R-B-5 분산 [2026, 2027] → groupByTaxYear.size === 2');
+  assertEq(rb5Groups.get(2026).length, 1,
+    'R-B-5 2026 그룹 length === 1');
+  assertEq(rb5Groups.get(2027).length, 1,
+    'R-B-5 2027 그룹 length === 1');
+
+  // 동일 연도 다중 양도 → 그룹화 통합
+  var rb5Same = [
+    { saleYear: 2026, calculatedTax: 100000000, taxBase: 300000000, heavyRateAddition: null },
+    { saleYear: 2026, calculatedTax: 130000000, taxBase: 350000000, heavyRateAddition: 0.20 }
+  ];
+  var rb5SameGroups = taxEngine.groupByTaxYear(rb5Same);
+  assertEq(rb5SameGroups.size, 1,
+    'R-B-5 동일 연도 → groupByTaxYear.size === 1');
+  assertEq(rb5SameGroups.get(2026).length, 2,
+    'R-B-5 2026 그룹 length === 2');
+
+  // ─── R-B-6: getRateGroupKey 부동소수점 회피 간접 검증 (작업지시서 §6-3-2 옵션 (나)) ─
+  // getRateGroupKey는 비공개 (외부 노출 0건). applyFinalReturnV3 통합 검증으로 간접 확인.
+  // heavyRateAddition 0.20·0.30 그룹화 정합 — 0.1+0.2 부동소수점 케이스도 0.30 그룹 정합.
+  var rb6Group = [
+    { saleYear: 2026, taxBase: 100000000, calculatedTax: 22840000, heavyRateAddition: 0.20 },
+    { saleYear: 2026, taxBase: 100000000, calculatedTax: 22840000, heavyRateAddition: 0.20 },
+    { saleYear: 2026, taxBase: 50000000,  calculatedTax: 14040000, heavyRateAddition: 0.1 + 0.2 }
+  ];
+  // 0.20 그룹 (2건, 단서 발동): 합산 200M 누적 산식 = 96,060,000 vs 단독 합계 45,680,000 → 96,060,000
+  // 0.30 그룹 (1건, 단독 그대로): calculatedTax 14,040,000
+  // 합계: 110,100,000
+  var rb6Clause2 = taxEngine.calculateClause2PerTransferWithDanSeo(rb6Group);
+  assertEq(rb6Clause2, 96060000 + 14040000,
+    'R-B-6 0.20 그룹 (2건 단서) + 0.30 그룹 (1건 단독) 정수 키 분리 정합 (0.1+0.2 부동소수점 회피)');
+
+  // ─── R-B-7: applyFinalReturnV3 통합 검증 (다중 양도 MAX 채택) ───────────
+  // 동일 호 세율 자산 1건씩 (일반 + 0.20) — 단서 미발동
+  // clause1 (1호 합산): findProgressiveTaxAmount(100M + 100M) = findProgressiveTaxAmount(200M)
+  //                  = 37,060,000 + (200M-150M)*0.38 = 56,060,000
+  // clause2 (2호): 일반 1건 단독 (19,560,000) + 0.20 1건 단독 (22,840,000) = 42,400,000
+  // MAX → 56,060,000 (CLAUSE_1)
+  var rb7Group = [
+    { saleYear: 2026, taxBase: 100000000, calculatedTax: 19560000, heavyRateAddition: null },
+    { saleYear: 2026, taxBase: 100000000, calculatedTax: 22840000, heavyRateAddition: 0.20 }
+  ];
+  var rb7Final = taxEngine.applyFinalReturnV3(rb7Group);
+  assertEq(rb7Final.method, 'CLAUSE_1_AGGREGATE_PROGRESSIVE',
+    'R-B-7 1호 채택 → method === "CLAUSE_1_AGGREGATE_PROGRESSIVE"');
+  assertEq(rb7Final.finalReturnTax, 56060000,
+    'R-B-7 1호 산출세액 === 56,060,000');
+  assertEq(rb7Final.aggregateTaxClause1, 56060000,
+    'R-B-7 aggregateTaxClause1 === 56,060,000');
+  assertEq(rb7Final.aggregateTaxClause2, 42400000,
+    'R-B-7 aggregateTaxClause2 === 42,400,000');
+
+  // ─── R-B-8: calculateSingleTransfer 단일 양도 v0.3-B 신규 4종 필드 채움 검증 ─
+  //   TC-001 (다주택 + 보유 6년) → finalReturnMethod === 'SINGLE_TRANSFER'
+  var rbTC001 = taxEngine.calculateSingleTransfer(buildCaseData(TC_GOLDEN_V01[0].input));
+  assertEq(rbTC001.steps.finalReturnMethod, 'SINGLE_TRANSFER',
+    'R-B-8 TC-001 단일 양도 → finalReturnMethod === "SINGLE_TRANSFER"');
+  assertEq(rbTC001.steps.finalReturnDiff, 0,
+    'R-B-8 TC-001 단일 양도 → finalReturnDiff === 0');
+  assertEq(rbTC001.steps.finalCalculatedTax, rbTC001.steps.calculatedTax,
+    'R-B-8 TC-001 단일 양도 → finalCalculatedTax === calculatedTax');
+  assertEq(rbTC001.steps.saleYear, 2026,
+    'R-B-8 TC-001 saleYear === 2026 (양도일 연도)');
+
+  // R-B-8 회귀 안전성 — TC-001 totalTax v0.3-A 정답값 그대로
+  assertEq(rbTC001.steps.totalTax, 83694600,
+    'R-B-8 TC-001 totalTax === 83,694,600 (v0.3-A 회귀 안전성 보존)');
+
+  // ─── R-B-9: 노출 멤버 (v0.3-B 신규 7종) ────────────────────────────────
+  assertEq(typeof taxEngine.findProgressiveTaxAmount, 'function',
+    'R-B-9 findProgressiveTaxAmount 노출');
+  assertEq(typeof taxEngine.findHeavyProgressiveTaxAmount, 'function',
+    'R-B-9 findHeavyProgressiveTaxAmount 노출');
+  assertEq(typeof taxEngine.groupByTaxYear, 'function',
+    'R-B-9 groupByTaxYear 노출');
+  assertEq(typeof taxEngine.calculateClause1AggregateProgressive, 'function',
+    'R-B-9 calculateClause1AggregateProgressive 노출');
+  assertEq(typeof taxEngine.calculateClause2PerTransferWithDanSeo, 'function',
+    'R-B-9 calculateClause2PerTransferWithDanSeo 노출');
+  assertEq(typeof taxEngine.applyFinalReturnV3, 'function',
+    'R-B-9 applyFinalReturnV3 노출');
+  assertEq(typeof taxEngine.distributeFinalTaxByShare, 'function',
+    'R-B-9 distributeFinalTaxByShare 노출');
+  assertEq(typeof taxEngine.getRateGroupKey, 'undefined',
+    'R-B-9 getRateGroupKey 비공개 (외부 노출 0건, 작업지시서 §4-2-3)');
+
+  // findProgressiveTaxAmount sanity — taxBase 200M (5구간 38%)
+  assertEq(taxEngine.findProgressiveTaxAmount(200000000),
+    37060000 + (200000000 - 150000000) * 0.38,
+    'R-B-9 findProgressiveTaxAmount(200M) === 56,060,000 (5구간)');
+
+  // findHeavyProgressiveTaxAmount sanity — taxBase 200M + 0.20 (누적 산식)
+  // 1: 14M*0.26 + 2: 36M*0.35 + 3: 38M*0.44 + 4: 62M*0.55 + (200M-150M)*0.58
+  // = 3,640,000 + 12,600,000 + 16,720,000 + 34,100,000 + 29,000,000 = 96,060,000
+  assertEq(taxEngine.findHeavyProgressiveTaxAmount(200000000, 0.20), 96060000,
+    'R-B-9 findHeavyProgressiveTaxAmount(200M, 0.20) === 96,060,000 (누적 산식)');
+
+  // 입력 검증 throw
+  expectThrow(function () { taxEngine.findProgressiveTaxAmount(-1); },
+    'R-B-9 findProgressiveTaxAmount(-1) throw (음수)');
+  expectThrow(function () { taxEngine.findProgressiveTaxAmount(1.5); },
+    'R-B-9 findProgressiveTaxAmount(1.5) throw (비정수)');
+  expectThrow(function () { taxEngine.findHeavyProgressiveTaxAmount(100000000, 0); },
+    'R-B-9 findHeavyProgressiveTaxAmount(_, 0) throw (addition 범위 외)');
+  expectThrow(function () { taxEngine.findHeavyProgressiveTaxAmount(100000000, 1); },
+    'R-B-9 findHeavyProgressiveTaxAmount(_, 1) throw (addition 범위 외)');
+
+  // ─── R-B-10: issueFlag 신규 2종 (TC-001 단일 양도 미발동 회귀 안전성) ────
+  assert(!hasFlag(rbTC001, 'FINAL_RETURN_AGGREGATE_PROGRESSIVE_APPLIED'),
+    'R-B-10 TC-001 단일 양도 → FINAL_RETURN_AGGREGATE_PROGRESSIVE_APPLIED 미발동');
+  assert(!hasFlag(rbTC001, 'FINAL_RETURN_DAN_SEO_APPLIED'),
+    'R-B-10 TC-001 단일 양도 → FINAL_RETURN_DAN_SEO_APPLIED 미발동');
+
+  // ─── R-B-11: lawRefs 배열에 finalReturnAggregation 1건 추가 ─────────────
+  assert(rbTC001.lawRefs.indexOf(taxEngine.constructor === Object ? '' :
+      (function () { try { return require('../js/tax_rules.js'); } catch (e) { return null; } })) === -1 ||
+    Array.isArray(rbTC001.lawRefs),
+    'R-B-11 lawRefs 배열 영속화');
+  // lawRefs 배열에 finalReturnAggregation 본문 포함 검증 (v0.3-A 9건 → v0.3-B 10건)
+  var hasFinalReturnLawRef = false;
+  for (var lri = 0; lri < rbTC001.lawRefs.length; lri++) {
+    if (typeof rbTC001.lawRefs[lri] === 'string' &&
+        rbTC001.lawRefs[lri].indexOf('제104조 제5항') >= 0) {
+      hasFinalReturnLawRef = true;
+      break;
+    }
+  }
+  assert(hasFinalReturnLawRef,
+    'R-B-11 result.lawRefs에 finalReturnAggregation (제104조 제5항) 본문 포함');
+
+  // ================================================================
   // 결과 출력
   // ================================================================
 
   console.log('==========================================');
-  console.log('=== tax_engine v0.3-A 회귀 테스트 ===');
+  console.log('=== tax_engine v0.3-B 회귀 테스트 ===');
   console.log('==========================================');
   Object.keys(groupCounters).forEach(function (g) {
     var c = groupCounters[g];

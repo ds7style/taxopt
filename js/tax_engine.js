@@ -1,7 +1,7 @@
 /**
  * tax_engine.js
  *
- * TaxOpt 계산 엔진 v0.3-A — 13단계 양도소득세 계산 파이프라인
+ * TaxOpt 계산 엔진 v0.3-B — 13단계 양도소득세 계산 파이프라인 + 확정신고 v3 산식
  *
  * 책임:
  *   1) caseData 입력을 받아 0~13단계 + B-008 보강 + issueFlag 수집을 수행한다.
@@ -21,11 +21,11 @@
  *   window.TaxOpt.taxRules (tax_rules.js v0.3-A, 선행 로드 필수)
  *
  * 참조 문서:
- *   - 모듈 스펙:    docs/v0.3/modules/tax_engine.md v0.3-A (단일 진본)
- *   - 명세서:       docs/v0.3/01_calc_engine_spec.md v0.3-A (산식 정본)
- *   - 작업지시서:   docs/05_code_work_orders/06_tax_engine_v0_3.md
- *   - 골든셋:       docs/v0.3/06_test_cases.md v0.3-A (TC-011~014 KPI 100%)
- *   - 의사결정:     docs/99_decision_log.md v13 (#5 강화, #9 v9, #11)
+ *   - 모듈 스펙:    docs/v0.3/modules/tax_engine.md v0.3-B (단일 진본)
+ *   - 명세서:       docs/v0.3/02_calc_engine_spec.md v0.3-B (산식 정본 + §5-7 5단계)
+ *   - 작업지시서:   docs/05_code_work_orders/v0_3_B/07_v0_3_B.md
+ *   - 골든셋:       docs/v0.3/06_test_cases.md v0.3-A (TC-011~014 회귀) + xlsx 시트19 (TC-S05·S06 v3)
+ *   - 의사결정:     docs/99_decision_log.md v14 (#13 확정신고 v3, #14 정수 키)
  *
  * v0.1.1 → v0.2.0 변경 요약:
  *   - 단계 0 (validateCaseData): v0.2 신규 검증 5종 + 자동 보정 7종 (B-019)
@@ -53,7 +53,7 @@
   // 0. 메타데이터
   // ==================================================================
 
-  var ENGINE_VERSION = 'v0.3.0-A';
+  var ENGINE_VERSION = 'v0.3.0-B';
 
   // tax_rules 의존을 호출 시점에 해소하기 위한 헬퍼 (모듈 스펙 §8-2 부트스트랩 가드)
   function getRules() {
@@ -758,7 +758,200 @@
   }
 
   // ==================================================================
-  // 6. issueFlag 수집 (v0.3-A: 활성 25종 = v0.2 18 + 신규 5 + 보조 3 − 폐기 1, 명세서 §6 + 작업지시서 §4-6)
+  // 5-B. v0.3-B 신규 — 확정신고 v3 산식 5단계 + 누진 헬퍼 공개 노출 격상
+  //      모듈 스펙 v0.3-B §5-7 + 명세서 §5-7-3 + 의사결정 #13 (법 제104조 ⑤ 정확본).
+  //      §0-1 원칙 (1)·(2)·(3) 준수: 가산세율 숫자 리터럴 보유 금지, 룩업 + 산식 흐름 분리.
+  //      v0.3-A 회귀 안전성: applyFinalReturnV3의 length===1 → SINGLE_TRANSFER 분기로 100% 보존.
+  // ==================================================================
+
+  // 5-B-1. findProgressiveTaxAmount — 일반 누진세율 산출세액 (공개 노출 격상)
+  // v0.3-A 단계 9 over2y 분기 산식 (computeCalculatedTax)을 명시 함수로 추출 + 공개.
+  // 입력 검증 throw 정책: tax_rules.findBracket이 검증.
+  function findProgressiveTaxAmount(taxBase) {
+    if (!Number.isInteger(taxBase) || taxBase < 0) {
+      throw new Error('findProgressiveTaxAmount: taxBase must be non-negative integer. got=' + taxBase);
+    }
+    var rs = getRules();
+    var bracket = rs.findBracket(taxBase);
+    return Math.floor(
+      bracket.baseTax + (taxBase - bracket.lowerBound) * bracket.marginalRate
+    );
+  }
+
+  // 5-B-2. findHeavyProgressiveTaxAmount — 다주택 중과 누진세율 산출세액 (공개 노출 격상)
+  // ★ 5/4 합의 결정 2번 영속화 영역: v0.3-A computeHeavyProgressiveTax 본문 산식 그대로
+  //    (PROGRESSIVE_BRACKETS 순회 누적 산식). Python 표준 누진공제 산식 미사용.
+  //    사유: TC-011·012 회귀 안전성 보장 — 누적 산식만 정답값 일치.
+  function findHeavyProgressiveTaxAmount(taxBase, addition) {
+    if (!Number.isInteger(taxBase) || taxBase < 0) {
+      throw new Error('findHeavyProgressiveTaxAmount: taxBase must be non-negative integer. got=' + taxBase);
+    }
+    if (typeof addition !== 'number' || !(addition > 0 && addition < 1)) {
+      throw new Error('findHeavyProgressiveTaxAmount: addition must be number in (0,1). got=' + addition);
+    }
+    var rs = getRules();
+    return computeHeavyProgressiveTax(taxBase, addition, rs);
+  }
+
+  // 5-B-3. getRateGroupKey — 부동소수점 회피용 정수 키 (★ 5/4 합의 결정 1번, B-022 영역)
+  //   0.0 → 0, 0.20 → 20, 0.30 → 30. (0.1+0.2)=0.30000000000000004 → Math.round * 100 → 30.
+  //   비공개 (calculateClause2PerTransferWithDanSeo 내부 Map 키로만 사용).
+  //   의사결정 #14 — 정수 반환 단일 채택 (모듈 스펙 §5-7-3 line 599~602 정정 인계 영역).
+  function getRateGroupKey(addition) {
+    return Math.round(addition * 100);
+  }
+
+  // 5-B-4. groupByTaxYear — 1단계: 양도일 연도별 그룹화
+  // 입력: perTransferResults (TaxResult[]) — 시뮬레이션 후 양도별 결과 배열, 길이 ≥ 1
+  // 출력: Map<number, TaxResult[]> — 키 = saleYear (정수), 값 = 동일 연도 양도 결과 배열
+  // 부수효과 없음, 결정성 보장.
+  function groupByTaxYear(perTransferResults) {
+    if (!Array.isArray(perTransferResults)) {
+      throw new Error('groupByTaxYear: perTransferResults must be Array. got=' + typeof perTransferResults);
+    }
+    var groups = new Map();
+    for (var i = 0; i < perTransferResults.length; i++) {
+      var r = perTransferResults[i];
+      if (!Number.isInteger(r.saleYear)) {
+        throw new Error('groupByTaxYear: r.saleYear must be integer. got=' + r.saleYear);
+      }
+      var year = r.saleYear;
+      if (!groups.has(year)) groups.set(year, []);
+      groups.get(year).push(r);
+    }
+    return groups;
+  }
+
+  // 5-B-5. calculateClause1AggregateProgressive — 2단계: 1호 합산 누진
+  // 모든 자산 과세표준 합산 (중과 자산 포함, 사용자 39번째 짚음 정정 영역) → 제55조 ① 1회 적용.
+  // 가산세율 미적용 — 1호는 "제55조제1항에 따른 세율"만 인용.
+  function calculateClause1AggregateProgressive(perTransferResultsSameYear) {
+    if (!Array.isArray(perTransferResultsSameYear) || perTransferResultsSameYear.length === 0) {
+      throw new Error('calculateClause1AggregateProgressive: must be non-empty Array');
+    }
+    var totalTaxBase = 0;
+    for (var i = 0; i < perTransferResultsSameYear.length; i++) {
+      totalTaxBase += perTransferResultsSameYear[i].taxBase;
+    }
+    return findProgressiveTaxAmount(totalTaxBase);
+  }
+
+  // 5-B-6. calculateClause2PerTransferWithDanSeo — 3단계: 2호 단독 합계 + 단서
+  //   heavyRateAddition별 그룹화 (정수 키 — 5/4 합의 결정 1번):
+  //     - 그룹 크기 ≥ 2 → 단서 발동: sumBase에 호별 세율 적용 후 MAX(합산, 단독 합계) 채택
+  //     - 그룹 크기 1 → 단독 그대로
+  function calculateClause2PerTransferWithDanSeo(perTransferResultsSameYear) {
+    if (!Array.isArray(perTransferResultsSameYear) || perTransferResultsSameYear.length === 0) {
+      throw new Error('calculateClause2PerTransferWithDanSeo: must be non-empty Array');
+    }
+    var byHeavyAddition = new Map();
+    for (var i = 0; i < perTransferResultsSameYear.length; i++) {
+      var r = perTransferResultsSameYear[i];
+      var addition = (typeof r.heavyRateAddition === 'number') ? r.heavyRateAddition : 0.0;
+      var key = getRateGroupKey(addition);
+      if (!byHeavyAddition.has(key)) {
+        byHeavyAddition.set(key, { addition: addition, group: [] });
+      }
+      byHeavyAddition.get(key).group.push(r);
+    }
+    var total = 0;
+    var iter = byHeavyAddition.values();
+    var step = iter.next();
+    while (!step.done) {
+      var bucket = step.value;
+      var group = bucket.group;
+      if (group.length >= 2) {
+        var sumBase = 0;
+        var sumSolo = 0;
+        for (var j = 0; j < group.length; j++) {
+          sumBase += group[j].taxBase;
+          sumSolo += group[j].calculatedTax;
+        }
+        var aggregatedInGroup = (bucket.addition === 0.0)
+          ? findProgressiveTaxAmount(sumBase)
+          : findHeavyProgressiveTaxAmount(sumBase, bucket.addition);
+        total += Math.max(aggregatedInGroup, sumSolo);
+      } else {
+        total += group[0].calculatedTax;
+      }
+      step = iter.next();
+    }
+    return total;
+  }
+
+  // 5-B-7. applyFinalReturnV3 — 4단계: MAX(1호, 2호) 채택
+  //   ★ 5/4 합의 결정 3번 영속화 영역: length === 1 → SINGLE_TRANSFER 분기 (TC-001~014 회귀 보존).
+  //   length >= 2 → 1호·2호 산출 후 큰 것 채택 (법 제104조 ⑤ 본문 "다음 각 호의 금액 중 큰 것").
+  function applyFinalReturnV3(perTransferResultsSameYear) {
+    if (!Array.isArray(perTransferResultsSameYear)) {
+      throw new Error('applyFinalReturnV3: must be Array');
+    }
+    if (perTransferResultsSameYear.length === 0) {
+      return { finalReturnTax: 0, method: 'NONE', diff: 0 };
+    }
+    if (perTransferResultsSameYear.length === 1) {
+      // 단일 양도 — TC-001~014 회귀 안전성 (5/4 합의 결정 3번)
+      var single = perTransferResultsSameYear[0];
+      return {
+        finalReturnTax: single.calculatedTax,
+        method: 'SINGLE_TRANSFER',
+        diff: 0
+      };
+    }
+    var clause1Tax = calculateClause1AggregateProgressive(perTransferResultsSameYear);
+    var clause2Tax = calculateClause2PerTransferWithDanSeo(perTransferResultsSameYear);
+    var perTransferTotal = 0;
+    for (var i = 0; i < perTransferResultsSameYear.length; i++) {
+      perTransferTotal += perTransferResultsSameYear[i].calculatedTax;
+    }
+    var finalReturnTax = Math.max(clause1Tax, clause2Tax);
+    var method = (finalReturnTax === clause1Tax)
+      ? 'CLAUSE_1_AGGREGATE_PROGRESSIVE'
+      : 'CLAUSE_2_PER_TRANSFER_WITH_DAN_SEO';
+    return {
+      finalReturnTax: finalReturnTax,
+      method: method,
+      diff: finalReturnTax - perTransferTotal,
+      aggregateTaxClause1: clause1Tax,
+      aggregateTaxClause2: clause2Tax,
+      perTransferTax: perTransferTotal
+    };
+  }
+
+  // 5-B-8. distributeFinalTaxByShare — 5단계: 양도별 비례 분배
+  // 부수효과: perTransferResultsSameYear[i].finalCalculatedTax 채움 (§7 불변성 약속 v0.3-B 예외 영역).
+  // Math.floor 적용 (B-022 절사 정책 정합) — 누적 손실로 Σ < finalReturnTax 가능 (최대 N-1원).
+  function distributeFinalTaxByShare(perTransferResultsSameYear, finalReturnResult) {
+    if (!Array.isArray(perTransferResultsSameYear)) {
+      throw new Error('distributeFinalTaxByShare: perTransferResultsSameYear must be Array');
+    }
+    if (!finalReturnResult || typeof finalReturnResult.finalReturnTax !== 'number') {
+      throw new Error('distributeFinalTaxByShare: invalid finalReturnResult');
+    }
+    if (finalReturnResult.method === 'SINGLE_TRANSFER') {
+      perTransferResultsSameYear[0].finalCalculatedTax = finalReturnResult.finalReturnTax;
+      return;
+    }
+    var totalCalc = 0;
+    for (var i = 0; i < perTransferResultsSameYear.length; i++) {
+      totalCalc += perTransferResultsSameYear[i].calculatedTax;
+    }
+    if (totalCalc === 0) {
+      for (var k = 0; k < perTransferResultsSameYear.length; k++) {
+        perTransferResultsSameYear[k].finalCalculatedTax = 0;
+      }
+      return;
+    }
+    for (var j = 0; j < perTransferResultsSameYear.length; j++) {
+      var r = perTransferResultsSameYear[j];
+      var share = r.calculatedTax / totalCalc;
+      r.finalCalculatedTax = Math.floor(finalReturnResult.finalReturnTax * share);
+    }
+  }
+
+  // ==================================================================
+  // 6. issueFlag 수집 (v0.3-B: 활성 27종 = v0.3-A 25 + 신규 2 (확정신고 v3 method 분기, 상호 배타))
+  //    명세서 §6 + 모듈 스펙 §6-B + 작업지시서 §4-5·§4-6
   // ==================================================================
 
   function collectIssueFlags(caseData, intermediates) {
@@ -792,6 +985,9 @@
                                 ? intermediates.heavyRateAddition : null;
     var holdingPeriodBranch = (intermediates && typeof intermediates.holdingPeriodBranch === 'string')
                                 ? intermediates.holdingPeriodBranch : null;
+    // v0.3-B 신규 intermediates — 확정신고 v3 산식 method (calculateSingleTransfer 단일 양도 시 SINGLE_TRANSFER)
+    var finalReturnMethod   = (intermediates && typeof intermediates.finalReturnMethod === 'string')
+                                ? intermediates.finalReturnMethod : null;
 
     // ─── (1) v0.2 신규 5종 + 보조 3종 ─────────────────────────────
 
@@ -1068,6 +1264,26 @@
       });
     }
 
+    // ─── (7) v0.3-B 신규 2종 — 확정신고 v3 산식 method 분기 (상호 배타) ─────
+    //   length === 1 (단일 양도) → SINGLE_TRANSFER → 본 2종 미발동 (TC-001~014 회귀 영역)
+    //   length >= 2 + 1호 채택 → FINAL_RETURN_AGGREGATE_PROGRESSIVE_APPLIED
+    //   length >= 2 + 2호 채택 → FINAL_RETURN_DAN_SEO_APPLIED
+    if (finalReturnMethod === 'CLAUSE_1_AGGREGATE_PROGRESSIVE') {
+      flags.push({
+        code: 'FINAL_RETURN_AGGREGATE_PROGRESSIVE_APPLIED',
+        severity: 'info',
+        message: '확정신고 시 1호 합산 누진세율 적용 (법 제104조 ⑤ 1호) — Σ 과세표준에 일반 누진세율 1회 적용.',
+        lawRef: lawRefs.finalReturnAggregation || '소득세법 제104조 제5항 1호 + 제55조 제1항'
+      });
+    } else if (finalReturnMethod === 'CLAUSE_2_PER_TRANSFER_WITH_DAN_SEO') {
+      flags.push({
+        code: 'FINAL_RETURN_DAN_SEO_APPLIED',
+        severity: 'info',
+        message: '확정신고 시 2호 단서 적용 (법 제104조 ⑤ 2호 단서) — 동일 호 세율 자산 ≥ 2건 합산 후 호별 세율 + MAX(합산, 단독) 채택.',
+        lawRef: lawRefs.finalReturnAggregation || '소득세법 제104조 제5항 2호 단서'
+      });
+    }
+
     return flags;
   }
 
@@ -1270,7 +1486,15 @@
     }
     var effectiveTaxRate = computeEffectiveTaxRate(totalTax, input.salePrice);
 
-    // issueFlag 수집 (v0.3-A intermediates 보강)
+    // v0.3-B 신규 — 확정신고 v3 산식 단일 양도 분기 적용 (5/4 합의 결정 3번 영역)
+    //   calculateSingleTransfer는 양도 1건만 처리하므로 항상 length === 1 → SINGLE_TRANSFER
+    //   다중 양도 처리는 scenario_engine.js (작업 창 #17+) 단일 책임.
+    var saleYearForResult = parseInt(input.saleDate.substring(0, 4), 10);
+    var finalCalculatedTax = calculatedTax;
+    var finalReturnMethod = 'SINGLE_TRANSFER';
+    var finalReturnDiff = 0;
+
+    // issueFlag 수집 (v0.3-A intermediates + v0.3-B finalReturnMethod 보강)
     var issueFlags = collectIssueFlags(corrected, {
       input: input,
       transferGain: transferGain,
@@ -1285,7 +1509,9 @@
       autoCorrections: validation.autoCorrections,
       // v0.3-A 신규
       isHeavyTaxation: isHeavyTaxation,
-      heavyRateAddition: heavyRateAddition
+      heavyRateAddition: heavyRateAddition,
+      // v0.3-B 신규 — calculateSingleTransfer는 항상 SINGLE_TRANSFER (단일 양도)
+      finalReturnMethod: finalReturnMethod
     });
 
     // 출력 appliedRate (terminateAt2 시 null, 모듈 스펙 §4-2-1)
@@ -1366,7 +1592,14 @@
         isHeavyTaxation:       isHeavyTaxation,
         heavyRateAddition:     heavyRateAddition,
         shortTermTax:          shortTermTax,
-        heavyProgressiveTax:   heavyProgressiveTax
+        heavyProgressiveTax:   heavyProgressiveTax,
+        // v0.3-B 신규 4개 필드 (모듈 스펙 §4-2-2-B + 작업지시서 §4-4)
+        //   calculateSingleTransfer는 단일 양도이므로 항상 SINGLE_TRANSFER 분기 적용.
+        //   다중 양도 (TC-S05·S06·S07) 처리는 scenario_engine.js 책임 영역.
+        saleYear:              saleYearForResult,
+        finalCalculatedTax:    finalCalculatedTax,
+        finalReturnMethod:     finalReturnMethod,
+        finalReturnDiff:       finalReturnDiff
       },
 
       // B-008 보강 — 시나리오 비교 지표 사전 노출
@@ -1380,7 +1613,7 @@
       warnings:        validation.warnings,
       autoCorrections: validation.autoCorrections,
 
-      // v0.1 array 형식 유지 + v0.2 신규 4건 + v0.3-A 신규 1건
+      // v0.1 array 형식 유지 + v0.2 신규 4건 + v0.3-A 신규 1건 + v0.3-B 신규 1건
       lawRefs: [
         rs.LAW_REFS.progressiveRate,
         rs.LAW_REFS.transferTaxRate,
@@ -1390,7 +1623,8 @@
         rs.LAW_REFS.highValueHouse,
         rs.LAW_REFS.longTermDeductionTable1,
         rs.LAW_REFS.longTermDeductionTable2,
-        rs.LAW_REFS.heavyTaxation
+        rs.LAW_REFS.heavyTaxation,
+        rs.LAW_REFS.finalReturnAggregation
       ]
     };
   }
@@ -1615,6 +1849,15 @@
     // v0.3-A 신규 (1종 + 1종 헬퍼)
     isHeavyTaxationApplicable:     isHeavyTaxationApplicable,
     computeHeavyProgressiveTax:    computeHeavyProgressiveTax,
+    // v0.3-B 신규 — 누진 헬퍼 공개 노출 격상 (2종) + §5-7 5단계 산식 (5종) = 7종
+    //   getRateGroupKey는 비공개 (calculateClause2PerTransferWithDanSeo 내부 Map 키로만 사용)
+    findProgressiveTaxAmount:               findProgressiveTaxAmount,
+    findHeavyProgressiveTaxAmount:           findHeavyProgressiveTaxAmount,
+    groupByTaxYear:                          groupByTaxYear,
+    calculateClause1AggregateProgressive:    calculateClause1AggregateProgressive,
+    calculateClause2PerTransferWithDanSeo:   calculateClause2PerTransferWithDanSeo,
+    applyFinalReturnV3:                      applyFinalReturnV3,
+    distributeFinalTaxByShare:               distributeFinalTaxByShare,
     // 자체검증 (1종)
     selfTest: selfTest
   };

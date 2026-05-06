@@ -70,8 +70,8 @@
   // 그룹 1. 메타데이터·상수
   // ----------------------------------------------------------------
 
-  // v0.3-A: RULE_VERSION 갱신. 작업지시서 05 §3-4 + 모듈 스펙 §3-6-1.
-  assertEq(rules.RULE_VERSION, 'v0.3.0-post-20260510', 'RULE_VERSION');
+  // v0.3-B: RULE_VERSION 갱신. 작업지시서 v0.3-B §3-2-1 + 모듈 스펙 §3-6-1-B.
+  assertEq(rules.RULE_VERSION, 'v0.3.1-final-return-v3', 'RULE_VERSION');
   assertEq(rules.APPLICABLE_SALE_DATE_FROM, '2026-05-10', 'APPLICABLE_SALE_DATE_FROM');
   assertEq(rules.BASIC_DEDUCTION_AMOUNT, 2500000, 'BASIC_DEDUCTION_AMOUNT');
   assertEq(rules.LOCAL_INCOME_TAX_RATE, 0.1, 'LOCAL_INCOME_TAX_RATE');
@@ -439,6 +439,21 @@
     'LAW_REFS.heavyTaxation 존재 (string)');
   assert(rules.LAW_REFS.heavyTaxation.length > 0,
     'LAW_REFS.heavyTaxation 비어있지 않음');
+
+  // ----------------------------------------------------------------
+  // v0.3-B 그룹 R-A. LAW_REFS.finalReturnAggregation (작업지시서 §5-3)
+  //   사용자 39번째 짚음 정정 영역 — 시행령 인용 0건 보장
+  // ----------------------------------------------------------------
+
+  assertEq(typeof rules.LAW_REFS.finalReturnAggregation, 'string',
+    'LAW_REFS.finalReturnAggregation 존재 (string, v0.3-B 신규)');
+  assertEq(rules.LAW_REFS.finalReturnAggregation,
+    '소득세법 제104조 제5항(본문·1호·2호 본문·2호 단서) + 제55조 제1항',
+    'LAW_REFS.finalReturnAggregation 정확본 인용');
+  assertEq(rules.LAW_REFS.finalReturnAggregation.indexOf('시행령'), -1,
+    'LAW_REFS.finalReturnAggregation 시행령 인용 0건 (사용자 39번째 짚음 정정)');
+  assertEq(rules.LAW_REFS.finalReturnAggregation.indexOf('제167조'), -1,
+    'LAW_REFS.finalReturnAggregation 제167조 인용 0건');
 
   // ----------------------------------------------------------------
   // v0.3-A 그룹 B. findHeavyTaxRateAddition 클램프·throw 검증 (§9-2-2)
